@@ -77,4 +77,49 @@ public class ReportsHandlerTests
         Assert.Single(journal);
         Assert.Equal("In", journal[0].Title);
     }
+
+    [Fact]
+    public async Task GetRangeDataAsync_EntriesOrderedByStartTimeAscending()
+    {
+        using var db = CreateDb();
+        db.TimeEntries.AddRange(
+            new TimeEntry { StartTime = new DateTime(2026, 3, 5, 14, 0, 0, DateTimeKind.Utc), EndTime = new DateTime(2026, 3, 5, 15, 0, 0, DateTimeKind.Utc) },
+            new TimeEntry { StartTime = new DateTime(2026, 3, 3,  9, 0, 0, DateTimeKind.Utc), EndTime = new DateTime(2026, 3, 3, 10, 0, 0, DateTimeKind.Utc) }
+        );
+        await db.SaveChangesAsync();
+
+        var handler = new ReportsHandler(db);
+        var (entries, _) = await handler.GetRangeDataAsync(new ReportRange(new DateOnly(2026, 3, 1), new DateOnly(2026, 3, 7)));
+
+        Assert.True(entries[0].StartTime < entries[1].StartTime);
+    }
+
+    [Fact]
+    public async Task GetRangeDataAsync_JournalOrderedByDateAscending()
+    {
+        using var db = CreateDb();
+        db.JournalEntries.AddRange(
+            new JournalEntry { Date = new DateOnly(2026, 3, 7), Type = JournalEntryType.Success, Title = "Later", Body = "", CreatedAt = DateTime.UtcNow },
+            new JournalEntry { Date = new DateOnly(2026, 3, 2), Type = JournalEntryType.Success, Title = "Earlier", Body = "", CreatedAt = DateTime.UtcNow }
+        );
+        await db.SaveChangesAsync();
+
+        var handler = new ReportsHandler(db);
+        var (_, journal) = await handler.GetRangeDataAsync(new ReportRange(new DateOnly(2026, 3, 1), new DateOnly(2026, 3, 7)));
+
+        Assert.Equal("Earlier", journal[0].Title);
+        Assert.Equal("Later", journal[1].Title);
+    }
+
+    [Fact]
+    public async Task GetRangeDataAsync_EmptyDatabase_ReturnsBothEmpty()
+    {
+        using var db = CreateDb();
+        var handler = new ReportsHandler(db);
+
+        var (entries, journal) = await handler.GetRangeDataAsync(new ReportRange(new DateOnly(2026, 3, 1), new DateOnly(2026, 3, 7)));
+
+        Assert.Empty(entries);
+        Assert.Empty(journal);
+    }
 }

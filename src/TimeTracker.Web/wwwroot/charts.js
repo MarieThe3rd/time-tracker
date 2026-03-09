@@ -43,3 +43,13 @@ window.downloadBase64File = (filename, base64) => {
     link.download = filename;
     link.click();
 };
+
+// Ctrl+Shift+S — start/stop timer via a Blazor-callable dotnet reference
+window.registerTimerShortcut = (dotnetRef) => {
+    document.addEventListener('keydown', (e) => {
+        if (e.ctrlKey && e.shiftKey && e.key === 'S') {
+            e.preventDefault();
+            dotnetRef.invokeMethodAsync('ToggleTimer');
+        }
+    });
+};

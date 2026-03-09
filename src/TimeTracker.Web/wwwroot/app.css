@@ -28,7 +28,30 @@
     overflow-y: auto;
 }
 
-/* Star rating */
+/* Mobile: collapse sidebar */
+@media (max-width: 768px) {
+    .layout-wrapper {
+        flex-direction: column;
+    }
+    .sidebar {
+        width: 100%;
+        min-width: unset;
+        flex-direction: row !important;
+        padding: 0.5rem 1rem !important;
+        overflow-x: auto;
+    }
+    .sidebar .navbar-brand {
+        display: none;
+    }
+    .sidebar ul {
+        flex-direction: row !important;
+        gap: 0.25rem !important;
+    }
+    .sidebar .nav-link {
+        white-space: nowrap;
+        font-size: 0.85rem;
+    }
+}
 .star-rating .bi-star-fill { color: #ffc107; }
 .star-rating .bi-star { color: #dee2e6; cursor: pointer; }
 

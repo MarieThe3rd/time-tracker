@@ -1,6 +1,6 @@
 @page "/timer"
 @rendermode InteractiveServer
-@implements IDisposable
+@implements IAsyncDisposable
 @using Microsoft.EntityFrameworkCore
 @inject StartTimerHandler StartHandler
 @inject StopTimerHandler StopHandler
@@ -10,6 +10,7 @@
 @inject ManualEntryHandler ManualHandler
 @inject AppDbContext Db
 @inject RunningTimerService TimerService
+@inject IJSRuntime JS
 
 <PageTitle>Timer — Time Tracker</PageTitle>
 
@@ -170,6 +171,7 @@
     private string? _description;
     private string _elapsed = "00:00:00";
     private System.Threading.Timer? _ticker;
+    private DotNetObjectReference<TimerPage>? _dotNetRef;
 
     private bool _showManual = false;
     private DateTime _manualStart = DateTime.Now.AddHours(-1);
@@ -260,5 +262,29 @@
     private static string FormatDuration(TimeSpan? d) =>
         d.HasValue ? $"{(int)d.Value.TotalHours}h {d.Value.Minutes}m" : "—";
 
-    public void Dispose() => _ticker?.Dispose();
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("registerTimerShortcut", _dotNetRef);
+        }
+    }
+
+    [JSInvokable]
+    public async Task ToggleTimer()
+    {
+        if (TimerService.IsRunning)
+            await StopTimer();
+        else
+            await StartTimer();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _ticker?.Dispose();
+        _dotNetRef?.Dispose();
+        await ValueTask.CompletedTask;
+    }
 }

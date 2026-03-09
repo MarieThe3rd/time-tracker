@@ -14,6 +14,8 @@ public class AddEntryHandler(AppDbContext db)
 {
     public async Task<JournalEntry> HandleAsync(AddJournalEntryInput input)
     {
+        if (string.IsNullOrWhiteSpace(input.Title))
+            throw new ArgumentException("Title cannot be empty.", nameof(input));
         var entry = new JournalEntry
         {
             Date = input.Date ?? DateOnly.FromDateTime(DateTime.Today),

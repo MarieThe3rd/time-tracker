@@ -19,6 +19,9 @@ public class ManualEntryHandler(AppDbContext db)
         if (input.EndTime <= input.StartTime)
             throw new ArgumentException("End time must be after start time.", nameof(input));
 
+        if (input.ProductivityRating.HasValue && (input.ProductivityRating.Value < 1 || input.ProductivityRating.Value > 5))
+            throw new ArgumentOutOfRangeException(nameof(input), "Productivity rating must be between 1 and 5.");
+
         var entry = new TimeEntry
         {
             StartTime = input.StartTime,

@@ -60,4 +60,64 @@ public class ManualEntryHandlerTests
 
         Assert.Equal(5, entry.ProductivityRating);
     }
+
+    [Fact]
+    public async Task HandleAsync_EndTimeEqualsStartTime_ThrowsArgumentException()
+    {
+        using var db = CreateDb();
+        var handler = new ManualEntryHandler(db);
+        var time = DateTime.UtcNow;
+        var input = new ManualEntryInput(time, time, null, null, null);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => handler.HandleAsync(input));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(6)]
+    [InlineData(-1)]
+    public async Task HandleAsync_ProductivityRatingOutOfRange_ThrowsArgumentOutOfRangeException(int rating)
+    {
+        using var db = CreateDb();
+        var handler = new ManualEntryHandler(db);
+        var input = new ManualEntryInput(
+            DateTime.UtcNow.AddHours(-1),
+            DateTime.UtcNow,
+            null, null, rating);
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => handler.HandleAsync(input));
+    }
+
+    [Fact]
+    public async Task HandleAsync_NullProductivityRating_SavesSuccessfully()
+    {
+        using var db = CreateDb();
+        var handler = new ManualEntryHandler(db);
+        var input = new ManualEntryInput(
+            DateTime.UtcNow.AddHours(-1),
+            DateTime.UtcNow,
+            null, "No rating", null);
+
+        var entry = await handler.HandleAsync(input);
+
+        Assert.Null(entry.ProductivityRating);
+    }
+
+    [Fact]
+    public async Task HandleAsync_AllNullOptionalFields_SavesSuccessfully()
+    {
+        using var db = CreateDb();
+        var handler = new ManualEntryHandler(db);
+        var input = new ManualEntryInput(
+            DateTime.UtcNow.AddHours(-1),
+            DateTime.UtcNow,
+            null, null, null);
+
+        var entry = await handler.HandleAsync(input);
+
+        Assert.NotNull(entry);
+        Assert.Null(entry.WorkCategoryId);
+        Assert.Null(entry.Description);
+        Assert.Null(entry.ProductivityRating);
+    }
 }

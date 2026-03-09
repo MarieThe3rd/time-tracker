@@ -13,6 +13,8 @@ public class ListEntriesHandler(AppDbContext db)
 {
     public async Task<List<JournalEntry>> HandleAsync(JournalFilter filter)
     {
+        if (filter.From.HasValue && filter.To.HasValue && filter.From.Value > filter.To.Value)
+            throw new ArgumentException("From date must be on or before To date.");
         var query = db.JournalEntries
             .Include(e => e.LinkedTimeEntry)
             .AsQueryable();

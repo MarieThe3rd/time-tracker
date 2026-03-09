@@ -116,4 +116,79 @@ public class DashboardHandlerTests
         Assert.Equal(3, data.RecentJournal.Count);
         Assert.Equal("Entry 5", data.RecentJournal[0].Title);
     }
+
+    [Fact]
+    public async Task HandleAsync_CategoryStats_OrderedByHoursDescending()
+    {
+        using var db = CreateDb();
+        var catA = new WorkCategory { Id = 20, Name = "Alpha", Color = "#000", Icon = "bi-a", IsSystem = false };
+        var catB = new WorkCategory { Id = 21, Name = "Beta", Color = "#000", Icon = "bi-b", IsSystem = false };
+        db.WorkCategories.AddRange(catA, catB);
+        var start = DateTime.Today.ToUniversalTime();
+        db.TimeEntries.AddRange(
+            // catA: 1 hour
+            new TimeEntry { StartTime = start, EndTime = start.AddHours(1), WorkCategoryId = 20 },
+            // catB: 3 hours
+            new TimeEntry { StartTime = start.AddHours(2), EndTime = start.AddHours(5), WorkCategoryId = 21 }
+        );
+        await db.SaveChangesAsync();
+
+        var data = await new DashboardHandler(db).HandleAsync();
+
+        Assert.Equal("Beta", data.CategoryStats[0].Name);
+        Assert.Equal("Alpha", data.CategoryStats[1].Name);
+    }
+
+    [Fact]
+    public async Task HandleAsync_RecentEntries_LimitedToFive()
+    {
+        using var db = CreateDb();
+        var start = DateTime.Today.ToUniversalTime();
+        for (int i = 0; i < 8; i++)
+        {
+            db.TimeEntries.Add(new TimeEntry
+            {
+                StartTime = start.AddHours(i),
+                EndTime = start.AddHours(i + 1)
+            });
+        }
+        await db.SaveChangesAsync();
+
+        var data = await new DashboardHandler(db).HandleAsync();
+
+        Assert.Equal(5, data.RecentEntries.Count);
+    }
+
+    [Fact]
+    public async Task HandleAsync_RecentEntries_OrderedByStartTimeDescending()
+    {
+        using var db = CreateDb();
+        var start = DateTime.Today.ToUniversalTime();
+        db.TimeEntries.AddRange(
+            new TimeEntry { StartTime = start.AddHours(1), EndTime = start.AddHours(2) },
+            new TimeEntry { StartTime = start.AddHours(3), EndTime = start.AddHours(4) }
+        );
+        await db.SaveChangesAsync();
+
+        var data = await new DashboardHandler(db).HandleAsync();
+
+        Assert.True(data.RecentEntries[0].StartTime > data.RecentEntries[1].StartTime);
+    }
+
+    [Fact]
+    public async Task HandleAsync_UnratedEntries_DoNotAffectAvgProductivity()
+    {
+        using var db = CreateDb();
+        var start = DateTime.Today.ToUniversalTime();
+        db.TimeEntries.AddRange(
+            new TimeEntry { StartTime = start, EndTime = start.AddHours(1), ProductivityRating = 4 },
+            new TimeEntry { StartTime = start.AddHours(2), EndTime = start.AddHours(3), ProductivityRating = null }
+        );
+        await db.SaveChangesAsync();
+
+        var data = await new DashboardHandler(db).HandleAsync();
+
+        // Only the rated entry counts — avg should be 4, not 2
+        Assert.Equal(4.0, data.AvgProductivity);
+    }
 }
