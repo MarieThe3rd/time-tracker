@@ -1,0 +1,44 @@
+@rendermode InteractiveServer
+@implements IDisposable
+@inject RunningTimerService TimerService
+@inject StopTimerHandler StopHandler
+@inject NavigationManager Nav
+
+@if (TimerService.IsRunning)
+{
+    <div class="timer-strip d-flex align-items-center gap-3 px-3 py-2">
+        <i class="bi bi-stopwatch-fill text-warning"></i>
+        <span class="fw-semibold text-white">@_elapsed</span>
+        @if (!string.IsNullOrEmpty(_description))
+        {
+            <span class="text-white-50 small text-truncate" style="max-width:300px">@_description</span>
+        }
+        <button class="btn btn-sm btn-danger ms-auto" @onclick="Stop">
+            <i class="bi bi-stop-fill me-1"></i>Stop
+        </button>
+    </div>
+}
+
+@code {
+    private string _elapsed = "00:00:00";
+    private string? _description;
+    private System.Threading.Timer? _ticker;
+
+    protected override void OnInitialized()
+    {
+        _description = TimerService.Description;
+        _ticker = new System.Threading.Timer(_ =>
+        {
+            _elapsed = TimerService.GetElapsed().ToString(@"hh\:mm\:ss");
+            InvokeAsync(StateHasChanged);
+        }, null, 0, 1000);
+    }
+
+    private async Task Stop()
+    {
+        await StopHandler.HandleAsync();
+        Nav.NavigateTo(Nav.Uri, forceLoad: false);
+    }
+
+    public void Dispose() => _ticker?.Dispose();
+}

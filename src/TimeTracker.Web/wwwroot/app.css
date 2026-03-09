@@ -31,3 +31,9 @@
 /* Star rating */
 .star-rating .bi-star-fill { color: #ffc107; }
 .star-rating .bi-star { color: #dee2e6; cursor: pointer; }
+
+/* Timer strip */
+.timer-strip {
+    background-color: #198754;
+    min-height: 44px;
+}
