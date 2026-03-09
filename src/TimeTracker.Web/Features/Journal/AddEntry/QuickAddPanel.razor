@@ -1,0 +1,116 @@
+@rendermode InteractiveServer
+@inject AddEntryHandler AddHandler
+
+<!-- FAB trigger button — fixed bottom right -->
+<div style="position:fixed;bottom:1.5rem;right:1.5rem;z-index:1050">
+    <button class="btn btn-primary rounded-circle shadow"
+            style="width:56px;height:56px;font-size:1.4rem"
+            title="Quick journal entry"
+            @onclick="Open">
+        <i class="bi bi-plus-lg"></i>
+    </button>
+</div>
+
+<!-- Offcanvas panel -->
+<div class="offcanvas offcanvas-end @(_open ? "show" : "")"
+     tabindex="-1"
+     style="visibility:@(_open ? "visible" : "hidden");width:380px"
+     aria-label="Quick Journal Entry">
+    <div class="offcanvas-header">
+        <h5 class="offcanvas-title"><i class="bi bi-journal-plus me-2"></i>Journal Entry</h5>
+        <button type="button" class="btn-close" @onclick="Close"></button>
+    </div>
+    <div class="offcanvas-body">
+        <!-- Type selector -->
+        <div class="mb-3">
+            <label class="form-label fw-semibold">Type</label>
+            <div class="d-flex gap-2">
+                @foreach (var type in Enum.GetValues<JournalEntryType>())
+                {
+                    var t = type;
+                    var (icon, color) = TypeStyle(t);
+                    <button class="btn btn-sm @(_type == t ? $"btn-{color}" : $"btn-outline-{color}")"
+                            @onclick="() => _type = t">
+                        <i class="bi @icon me-1"></i>@t
+                    </button>
+                }
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label fw-semibold">Title</label>
+            <input class="form-control" placeholder="Brief title..." @bind="_title" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label fw-semibold">Notes</label>
+            <textarea class="form-control" rows="4" placeholder="Details..." @bind="_body"></textarea>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label fw-semibold">Date</label>
+            <input type="date" class="form-control" @bind="_date" />
+        </div>
+
+        @if (_saved)
+        {
+            <div class="alert alert-success py-2">✓ Saved!</div>
+        }
+        @if (_error is not null)
+        {
+            <div class="alert alert-danger py-2">@_error</div>
+        }
+
+        <button class="btn btn-primary w-100" @onclick="Save" disabled="@_saving">
+            @(_saving ? "Saving…" : "Save Entry")
+        </button>
+    </div>
+</div>
+
+@if (_open)
+{
+    <!-- Backdrop -->
+    <div class="offcanvas-backdrop fade show" @onclick="Close"></div>
+}
+
+@code {
+    private bool _open;
+    private bool _saving;
+    private bool _saved;
+    private string? _error;
+
+    private JournalEntryType _type = JournalEntryType.Success;
+    private string _title = string.Empty;
+    private string _body = string.Empty;
+    private DateOnly _date = DateOnly.FromDateTime(DateTime.Today);
+
+    public void Open()  { _open = true;  _saved = false; _error = null; }
+    public void Close() { _open = false; }
+
+    private async Task Save()
+    {
+        _error = null;
+        if (string.IsNullOrWhiteSpace(_title))
+        {
+            _error = "Title is required.";
+            return;
+        }
+        _saving = true;
+        try
+        {
+            await AddHandler.HandleAsync(new AddJournalEntryInput(_type, _title, _body, _date));
+            _saved = true;
+            _title = string.Empty;
+            _body = string.Empty;
+        }
+        finally { _saving = false; }
+    }
+
+    private static (string icon, string color) TypeStyle(JournalEntryType t) => t switch
+    {
+        JournalEntryType.Challenge => ("bi-lightning-charge", "warning"),
+        JournalEntryType.Learning  => ("bi-mortarboard", "info"),
+        JournalEntryType.Success   => ("bi-trophy", "success"),
+        _ => ("bi-circle", "secondary")
+    };
+}

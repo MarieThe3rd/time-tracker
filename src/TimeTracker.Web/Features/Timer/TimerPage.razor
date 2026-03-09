@@ -1,0 +1,264 @@
+@page "/timer"
+@rendermode InteractiveServer
+@implements IDisposable
+@using Microsoft.EntityFrameworkCore
+@inject StartTimerHandler StartHandler
+@inject StopTimerHandler StopHandler
+@inject GetTodayEntriesHandler TodayHandler
+@inject DeleteTimeEntryHandler DeleteHandler
+@inject UpdateProductivityHandler ProductivityHandler
+@inject ManualEntryHandler ManualHandler
+@inject AppDbContext Db
+@inject RunningTimerService TimerService
+
+<PageTitle>Timer — Time Tracker</PageTitle>
+
+<h4 class="mb-4"><i class="bi bi-stopwatch me-2"></i>Timer</h4>
+
+<div class="row g-4">
+    <!-- Timer Card -->
+    <div class="col-12 col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Category</label>
+                    <select class="form-select" @bind="_categoryId">
+                        <option value="">— Select category —</option>
+                        @foreach (var cat in _categories)
+                        {
+                            <option value="@cat.Id">@cat.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Description</label>
+                    <input class="form-control" placeholder="What are you working on?" @bind="_description" />
+                </div>
+                <div class="d-flex align-items-center gap-3">
+                    <span class="display-6 fw-bold font-monospace">@_elapsed</span>
+                    @if (!TimerService.IsRunning)
+                    {
+                        <button class="btn btn-success btn-lg" @onclick="StartTimer">
+                            <i class="bi bi-play-fill me-1"></i> Start
+                        </button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-danger btn-lg" @onclick="StopTimer">
+                            <i class="bi bi-stop-fill me-1"></i> Stop
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manual Entry Card -->
+    <div class="col-12 col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="fw-semibold">Manual Entry</span>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="() => _showManual = !_showManual">
+                    @(_showManual ? "Hide" : "Show")
+                </button>
+            </div>
+            @if (_showManual)
+            {
+                <div class="card-body">
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <label class="form-label">Start</label>
+                            <input type="datetime-local" class="form-control" @bind="_manualStart" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">End</label>
+                            <input type="datetime-local" class="form-control" @bind="_manualEnd" />
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Category</label>
+                        <select class="form-select" @bind="_manualCategoryId">
+                            <option value="">— Select —</option>
+                            @foreach (var cat in _categories)
+                            {
+                                <option value="@cat.Id">@cat.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Description</label>
+                        <input class="form-control" @bind="_manualDescription" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Productivity</label>
+                        <StarRatingPicker Rating="_manualRating" OnRatingChanged="r => _manualRating = r" />
+                    </div>
+                    @if (_manualError is not null)
+                    {
+                        <div class="alert alert-danger py-1">@_manualError</div>
+                    }
+                    <button class="btn btn-primary" @onclick="SaveManual">Save Entry</button>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<!-- Today's Entries -->
+<div class="card shadow-sm mt-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="fw-semibold"><i class="bi bi-list-ul me-1"></i>Today's Entries</span>
+        <span class="text-muted small">Total: <strong>@_totalToday</strong></span>
+    </div>
+    <div class="card-body p-0">
+        @if (_todayEntries.Count == 0)
+        {
+            <p class="text-muted p-3 mb-0">No entries yet today.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Time</th>
+                            <th>Category</th>
+                            <th>Description</th>
+                            <th>Duration</th>
+                            <th>Productivity</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var entry in _todayEntries)
+                        {
+                            <tr>
+                                <td class="text-nowrap small">@entry.StartTime.ToLocalTime().ToString("HH:mm")</td>
+                                <td>
+                                    @if (entry.WorkCategory is not null)
+                                    {
+                                        <span class="badge" style="background-color:@entry.WorkCategory.Color">
+                                            @entry.WorkCategory.Name
+                                        </span>
+                                    }
+                                </td>
+                                <td class="text-muted small">@entry.Description</td>
+                                <td class="small text-nowrap">@FormatDuration(entry.Duration)</td>
+                                <td>
+                                    <StarRatingPicker Rating="@(entry.ProductivityRating ?? 0)"
+                                                     OnRatingChanged="r => UpdateRating(entry.Id, r)" />
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-danger"
+                                            @onclick="() => DeleteEntry(entry.Id)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private List<WorkCategory> _categories = [];
+    private List<TimeEntry> _todayEntries = [];
+    private int? _categoryId;
+    private string? _description;
+    private string _elapsed = "00:00:00";
+    private System.Threading.Timer? _ticker;
+
+    private bool _showManual = false;
+    private DateTime _manualStart = DateTime.Now.AddHours(-1);
+    private DateTime _manualEnd = DateTime.Now;
+    private int? _manualCategoryId;
+    private string? _manualDescription;
+    private int _manualRating = 0;
+    private string? _manualError;
+
+    private string _totalToday = "0h 0m";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _categories = await Db.WorkCategories.OrderBy(c => c.Name).ToListAsync();
+        await RefreshEntries();
+
+        // Sync timer state if already running
+        if (TimerService.IsRunning)
+        {
+            _categoryId = TimerService.CategoryId;
+            _description = TimerService.Description;
+        }
+
+        _ticker = new System.Threading.Timer(_ =>
+        {
+            _elapsed = TimerService.GetElapsed().ToString(@"hh\:mm\:ss");
+            InvokeAsync(StateHasChanged);
+        }, null, 0, 1000);
+    }
+
+    private async Task StartTimer()
+    {
+        StartHandler.Handle(_categoryId, _description);
+        await RefreshEntries();
+    }
+
+    private async Task StopTimer()
+    {
+        await StopHandler.HandleAsync();
+        _elapsed = "00:00:00";
+        _description = null;
+        _categoryId = null;
+        await RefreshEntries();
+    }
+
+    private async Task SaveManual()
+    {
+        _manualError = null;
+        if (_manualEnd <= _manualStart)
+        {
+            _manualError = "End time must be after start time.";
+            return;
+        }
+        var input = new ManualEntryInput(
+            _manualStart.ToUniversalTime(),
+            _manualEnd.ToUniversalTime(),
+            _manualCategoryId,
+            _manualDescription,
+            _manualRating == 0 ? null : _manualRating);
+        await ManualHandler.HandleAsync(input);
+        _showManual = false;
+        _manualRating = 0;
+        _manualDescription = null;
+        await RefreshEntries();
+    }
+
+    private async Task DeleteEntry(int id)
+    {
+        await DeleteHandler.HandleAsync(id);
+        await RefreshEntries();
+    }
+
+    private async Task UpdateRating(int id, int rating)
+    {
+        await ProductivityHandler.HandleAsync(id, rating);
+        await RefreshEntries();
+    }
+
+    private async Task RefreshEntries()
+    {
+        _todayEntries = await TodayHandler.HandleAsync();
+        var total = _todayEntries
+            .Where(e => e.Duration.HasValue)
+            .Aggregate(TimeSpan.Zero, (acc, e) => acc + e.Duration!.Value);
+        _totalToday = $"{(int)total.TotalHours}h {total.Minutes}m";
+    }
+
+    private static string FormatDuration(TimeSpan? d) =>
+        d.HasValue ? $"{(int)d.Value.TotalHours}h {d.Value.Minutes}m" : "—";
+
+    public void Dispose() => _ticker?.Dispose();
+}

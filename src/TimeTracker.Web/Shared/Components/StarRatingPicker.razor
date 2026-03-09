@@ -1,0 +1,16 @@
+@* Renders 5 clickable star icons. Rating is 1-5. *@
+<div class="star-rating d-inline-flex gap-1">
+    @for (int i = 1; i <= 5; i++)
+    {
+        var star = i;
+        <i class="bi @(star <= Rating ? "bi-star-fill" : "bi-star") fs-5"
+           style="cursor:pointer"
+           @onclick="() => OnRatingChanged.InvokeAsync(star)">
+        </i>
+    }
+</div>
+
+@code {
+    [Parameter] public int Rating { get; set; }
+    [Parameter] public EventCallback<int> OnRatingChanged { get; set; }
+}

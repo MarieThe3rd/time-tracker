@@ -1,0 +1,33 @@
+/* Sidebar layout */
+.layout-wrapper {
+    display: flex;
+    min-height: 100vh;
+}
+
+.sidebar {
+    width: 220px;
+    min-width: 220px;
+    background-color: #1a1a2e;
+    color: white;
+}
+
+.sidebar .nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+}
+
+.sidebar .nav-link.active {
+    background-color: rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    font-weight: 600;
+}
+
+.main-content {
+    flex: 1;
+    background-color: #f8f9fa;
+    overflow-y: auto;
+}
+
+/* Star rating */
+.star-rating .bi-star-fill { color: #ffc107; }
+.star-rating .bi-star { color: #dee2e6; cursor: pointer; }
