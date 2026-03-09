@@ -1,7 +1,9 @@
 @page "/journal"
 @rendermode InteractiveServer
+@implements IDisposable
 @inject ListEntriesHandler ListHandler
 @inject DeleteJournalEntryHandler DeleteHandler
+@inject TimeTracker.Web.Features.Journal.JournalChangeService JournalChangeSvc
 
 <PageTitle>Journal — Time Tracker</PageTitle>
 
@@ -82,7 +84,20 @@ else
     private DateOnly? _from;
     private DateOnly? _to;
 
-    protected override async Task OnInitializedAsync() => await Refresh();
+    protected override async Task OnInitializedAsync()
+    {
+        JournalChangeSvc.EntryAdded += OnEntryAdded;
+        await Refresh();
+    }
+
+    private void OnEntryAdded() =>
+        InvokeAsync(async () =>
+        {
+            await Refresh();
+            StateHasChanged();
+        });
+
+    public void Dispose() => JournalChangeSvc.EntryAdded -= OnEntryAdded;
 
     private async Task Refresh()
     {
