@@ -19,12 +19,13 @@ public class GetTodayEntriesHandlerTests
     public async Task HandleAsync_ReturnsOnlyTodaysEntries()
     {
         using var db = CreateDb();
-        var today = DateTime.UtcNow;
-        var yesterday = today.AddDays(-1);
+        // Use local midnight + 10h to guarantee the entry is "today" in any timezone
+        var todayUtc = DateTime.Today.AddHours(10).ToUniversalTime();
+        var yesterdayUtc = DateTime.Today.AddDays(-1).AddHours(10).ToUniversalTime();
 
         db.TimeEntries.AddRange(
-            new TimeEntry { StartTime = today, EndTime = today.AddHours(1) },
-            new TimeEntry { StartTime = yesterday, EndTime = yesterday.AddHours(1) }
+            new TimeEntry { StartTime = todayUtc, EndTime = todayUtc.AddHours(1) },
+            new TimeEntry { StartTime = yesterdayUtc, EndTime = yesterdayUtc.AddHours(1) }
         );
         await db.SaveChangesAsync();
 
@@ -38,16 +39,19 @@ public class GetTodayEntriesHandlerTests
     public async Task HandleAsync_OrdersByStartTimeDescending()
     {
         using var db = CreateDb();
-        var now = DateTime.UtcNow;
+        // Use local midnight + hours to guarantee both entries are "today" in any timezone
+        var earlyTodayUtc = DateTime.Today.AddHours(9).ToUniversalTime();
+        var laterTodayUtc = DateTime.Today.AddHours(11).ToUniversalTime();
         db.TimeEntries.AddRange(
-            new TimeEntry { StartTime = now.AddHours(-3), EndTime = now.AddHours(-2) },
-            new TimeEntry { StartTime = now.AddHours(-1), EndTime = now }
+            new TimeEntry { StartTime = earlyTodayUtc, EndTime = earlyTodayUtc.AddHours(1) },
+            new TimeEntry { StartTime = laterTodayUtc, EndTime = laterTodayUtc.AddHours(1) }
         );
         await db.SaveChangesAsync();
 
         var handler = new GetTodayEntriesHandler(db);
         var entries = await handler.HandleAsync();
 
+        Assert.Equal(2, entries.Count);
         Assert.True(entries[0].StartTime > entries[1].StartTime);
     }
 }

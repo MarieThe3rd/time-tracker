@@ -4,6 +4,7 @@ using TimeTracker.Web.Features.Timer;
 using TimeTracker.Web.Features.Timer.ManualEntry;
 using TimeTracker.Web.Features.Journal.AddEntry;
 using TimeTracker.Web.Features.Journal.ListEntries;
+using TimeTracker.Web.Features.Journal;
 using TimeTracker.Web.Features.Dashboard;
 using TimeTracker.Web.Features.Reports;
 using TimeTracker.Web.Features.Reports.DailyNote;
@@ -41,6 +42,8 @@ builder.Services.AddScoped<MarkdownExportService>();
 // Settings
 builder.Services.AddScoped<SettingsHandler>();
 
+builder.Services.AddScoped<JournalChangeService>();
+
 var app = builder.Build();
 
 if (!app.Environment.IsDevelopment())
@@ -63,3 +66,6 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+
+// Expose Program class for WebApplicationFactory in UITests
+public partial class Program { }

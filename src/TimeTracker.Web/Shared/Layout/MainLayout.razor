@@ -1,6 +1,7 @@
 @inherits LayoutComponentBase
 @using TimeTracker.Web.Features.Journal.AddEntry
 @using TimeTracker.Web.Shared.Components
+@inject IJSRuntime JS
 
 <div class="layout-wrapper">
     <NavMenu />
@@ -15,3 +16,16 @@
 </div>
 
 <QuickAddPanel />
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Mark the document body as Blazor-interactive so UI tests can reliably
+            // detect when the SignalR circuit is connected and event handlers are wired.
+            await JS.InvokeVoidAsync("eval",
+                "document.body.setAttribute('data-blazor-ready','true')");
+        }
+    }
+}
