@@ -1,6 +1,154 @@
 @page "/settings"
 @rendermode InteractiveServer
+@inject SettingsHandler Handler
 
 <PageTitle>Settings — Time Tracker</PageTitle>
-<h1>Settings</h1>
-<p>Obsidian vault path and category management will appear here.</p>
+
+<h4 class="mb-4"><i class="bi bi-gear me-2"></i>Settings</h4>
+
+<div class="row g-4">
+
+    <!-- Obsidian Settings -->
+    <div class="col-12 col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-header fw-semibold"><i class="bi bi-journal-bookmark me-2"></i>Obsidian Vault</div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Vault Root Path</label>
+                    <input class="form-control font-monospace"
+                           placeholder="e.g. C:\Users\you\Documents\MyVault"
+                           @bind="_settings.VaultRootPath" />
+                    <div class="form-text">Full path to the root of your Obsidian vault on this machine.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Daily Notes Subfolder</label>
+                    <input class="form-control font-monospace"
+                           @bind="_settings.DailyNotesSubfolder" />
+                    <div class="form-text">Relative to vault root. Default: <code>Journal\Daily</code></div>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(_settings.VaultRootPath))
+                {
+                    <div class="alert alert-light py-2 small">
+                        <strong>Resolved path:</strong><br />
+                        <code>@Path.Combine(_settings.VaultRootPath, _settings.DailyNotesSubfolder, "YYYY-MM-DD.md")</code>
+                    </div>
+                }
+                @if (_settingsSaved)
+                {
+                    <div class="alert alert-success py-2">✓ Settings saved.</div>
+                }
+                <button class="btn btn-primary" @onclick="SaveSettings">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Work Categories -->
+    <div class="col-12 col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-header fw-semibold"><i class="bi bi-tags me-2"></i>Work Categories</div>
+            <div class="card-body p-0">
+                <ul class="list-group list-group-flush">
+                    @foreach (var cat in _categories)
+                    {
+                        <li class="list-group-item d-flex align-items-center gap-2">
+                            <span class="badge" style="background-color:@cat.Color; min-width:24px">
+                                <i class="bi @cat.Icon"></i>
+                            </span>
+                            @if (_editingId == cat.Id)
+                            {
+                                <input class="form-control form-control-sm" style="max-width:160px" @bind="cat.Name" />
+                                <input type="color" class="form-control form-control-color form-control-sm" style="width:40px" @bind="cat.Color" />
+                                <button class="btn btn-sm btn-success" @onclick="() => SaveCategory(cat)"><i class="bi bi-check"></i></button>
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="() => _editingId = null"><i class="bi bi-x"></i></button>
+                            }
+                            else
+                            {
+                                <span class="flex-grow-1">@cat.Name</span>
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="() => _editingId = cat.Id">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                @if (!cat.IsSystem)
+                                {
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteCategory(cat.Id)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">system</span>
+                                }
+                            }
+                        </li>
+                    }
+                </ul>
+
+                <!-- Add new category -->
+                <div class="p-3 border-top">
+                    <div class="d-flex gap-2 align-items-center">
+                        <input class="form-control form-control-sm" placeholder="New category name"
+                               @bind="_newCatName" style="flex:1" />
+                        <input type="color" class="form-control form-control-color form-control-sm"
+                               style="width:40px" @bind="_newCatColor" />
+                        <button class="btn btn-sm btn-primary" @onclick="AddCategory">
+                            <i class="bi bi-plus-lg"></i>
+                        </button>
+                    </div>
+                    @if (_catError is not null)
+                    {
+                        <div class="text-danger small mt-1">@_catError</div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private UserSettings _settings = new();
+    private List<WorkCategory> _categories = [];
+    private int? _editingId;
+    private bool _settingsSaved;
+    private string _newCatName = string.Empty;
+    private string _newCatColor = "#6c757d";
+    private string? _catError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _settings = await Handler.GetAsync();
+        _categories = await Handler.GetCategoriesAsync();
+    }
+
+    private async Task SaveSettings()
+    {
+        await Handler.SaveAsync(_settings);
+        _settingsSaved = true;
+    }
+
+    private async Task AddCategory()
+    {
+        _catError = null;
+        if (string.IsNullOrWhiteSpace(_newCatName))
+        {
+            _catError = "Name is required.";
+            return;
+        }
+        await Handler.AddCategoryAsync(_newCatName, _newCatColor, "bi-circle");
+        _newCatName = string.Empty;
+        _newCatColor = "#6c757d";
+        _categories = await Handler.GetCategoriesAsync();
+    }
+
+    private async Task SaveCategory(WorkCategory cat)
+    {
+        await Handler.UpdateCategoryAsync(cat);
+        _editingId = null;
+        _categories = await Handler.GetCategoriesAsync();
+    }
+
+    private async Task DeleteCategory(int id)
+    {
+        await Handler.DeleteCategoryAsync(id);
+        _categories = await Handler.GetCategoriesAsync();
+    }
+}
+
