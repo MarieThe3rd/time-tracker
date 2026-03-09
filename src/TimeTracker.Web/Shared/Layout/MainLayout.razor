@@ -1,13 +1,17 @@
 @inherits LayoutComponentBase
 @using TimeTracker.Web.Features.Journal.AddEntry
+@using TimeTracker.Web.Shared.Components
 
 <div class="layout-wrapper">
     <NavMenu />
-    <main class="main-content">
-        <div class="container-fluid py-3">
-            @Body
-        </div>
-    </main>
+    <div class="d-flex flex-column flex-grow-1" style="min-width:0">
+        <TimerStrip />
+        <main class="main-content">
+            <div class="container-fluid py-3">
+                @Body
+            </div>
+        </main>
+    </div>
 </div>
 
 <QuickAddPanel />

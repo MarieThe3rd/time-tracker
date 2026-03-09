@@ -1,6 +1,214 @@
 @page "/reports"
 @rendermode InteractiveServer
+@inject ReportsHandler Handler
+@inject MarkdownExportService MarkdownService
+@inject AppDbContext Db
+@inject IJSRuntime JS
 
 <PageTitle>Reports — Time Tracker</PageTitle>
-<h1>Reports</h1>
-<p>Time distribution reports and Obsidian export will appear here.</p>
+
+<h4 class="mb-4"><i class="bi bi-bar-chart-line me-2"></i>Reports</h4>
+
+<!-- Date range picker -->
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label class="form-label">Preset</label>
+                <select class="form-select" @bind="_preset" @bind:after="ApplyPreset">
+                    <option value="today">Today</option>
+                    <option value="week">This week</option>
+                    <option value="month">This month</option>
+                    <option value="custom">Custom</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="form-label">From</label>
+                <input type="date" class="form-control" @bind="_from" @bind:after="LoadData" />
+            </div>
+            <div class="col-auto">
+                <label class="form-label">To</label>
+                <input type="date" class="form-control" @bind="_to" @bind:after="LoadData" />
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tab selector -->
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+        <button class="nav-link @(_tab == "summary" ? "active" : "")" @onclick='() => _tab = "summary"'>Summary</button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link @(_tab == "daily" ? "active" : "")" @onclick='() => _tab = "daily"'>Daily Note</button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link @(_tab == "weekly" ? "active" : "")" @onclick='() => _tab = "weekly"'>Weekly Summary</button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link @(_tab == "review" ? "active" : "")" @onclick='() => _tab = "review"'>Review Export</button>
+    </li>
+</ul>
+
+@if (_tab == "summary")
+{
+    <!-- Category breakdown -->
+    <div class="card shadow-sm">
+        <div class="card-header fw-semibold">Time by Category</div>
+        <div class="card-body">
+            @if (_entries.Count == 0)
+            {
+                <p class="text-muted">No entries in this range.</p>
+            }
+            else
+            {
+                var total = _entries.Where(e => e.Duration.HasValue).Sum(e => e.Duration!.Value.TotalHours);
+                <p class="text-muted small">Total: <strong>@FormatHours(total)</strong></p>
+                @foreach (var g in _entries
+                    .Where(e => e.Duration.HasValue && e.WorkCategory != null)
+                    .GroupBy(e => e.WorkCategory!)
+                    .Select(g => (Cat: g.Key, Hours: g.Sum(e => e.Duration!.Value.TotalHours)))
+                    .OrderByDescending(x => x.Hours))
+                {
+                    var pct = total > 0 ? (int)(g.Hours / total * 100) : 0;
+                    <div class="mb-2">
+                        <div class="d-flex justify-content-between small mb-1">
+                            <span>
+                                <span class="badge me-1" style="background-color:@g.Cat.Color">@g.Cat.Name</span>
+                            </span>
+                            <span>@FormatHours(g.Hours) (@pct%)</span>
+                        </div>
+                        <div class="progress" style="height:8px">
+                            <div class="progress-bar" style="width:@pct%;background-color:@g.Cat.Color"></div>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+}
+
+@if (_tab is "daily" or "weekly" or "review")
+{
+    var markdown = _tab switch
+    {
+        "daily" => MarkdownService.BuildDailyNote(
+            _from,
+            _entries.Where(e => e.StartTime.ToLocalTime().Date == _from.ToDateTime(TimeOnly.MinValue).Date).ToList(),
+            _journal.Where(j => j.Date == _from).ToList(),
+            _entries.Where(e => e.ProductivityRating.HasValue &&
+                e.StartTime.ToLocalTime().Date == _from.ToDateTime(TimeOnly.MinValue).Date)
+                .Select(e => (double)e.ProductivityRating!.Value)
+                .DefaultIfEmpty(0).Average()),
+        "weekly" => MarkdownService.BuildWeeklySummary(_from, _to, _entries, _journal),
+        "review" => MarkdownService.BuildReviewExport(_from, _to, _journal),
+        _ => string.Empty
+    };
+
+    <div class="card shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span class="fw-semibold"><i class="bi bi-markdown me-1"></i>Markdown Preview</span>
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-secondary" @onclick="() => CopyToClipboard(markdown)">
+                    <i class="bi bi-clipboard me-1"></i>Copy
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="() => DownloadMarkdown(markdown)">
+                    <i class="bi bi-download me-1"></i>Download .md
+                </button>
+                @if (_tab == "daily")
+                {
+                    <button class="btn btn-sm btn-success" @onclick="() => PushToObsidian(markdown)">
+                        <i class="bi bi-journal-arrow-up me-1"></i>Push to Obsidian
+                    </button>
+                }
+            </div>
+        </div>
+        <div class="card-body">
+            @if (!string.IsNullOrEmpty(_statusMessage))
+            {
+                <div class="alert @(_statusIsError ? "alert-danger" : "alert-success") py-2 mb-3">@_statusMessage</div>
+            }
+            <pre class="bg-light p-3 rounded small" style="white-space:pre-wrap;max-height:500px;overflow-y:auto">@markdown</pre>
+        </div>
+    </div>
+}
+
+@code {
+    private List<TimeEntry> _entries = [];
+    private List<JournalEntry> _journal = [];
+    private UserSettings _settings = new();
+    private string _tab = "summary";
+    private string _preset = "week";
+    private DateOnly _from = DateOnly.FromDateTime(DateTime.Today.AddDays(-(int)DateTime.Today.DayOfWeek + 1));
+    private DateOnly _to = DateOnly.FromDateTime(DateTime.Today);
+    private string? _statusMessage;
+    private bool _statusIsError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _settings = await Db.UserSettings.FirstOrDefaultAsync() ?? new UserSettings();
+        await ApplyPreset();
+    }
+
+    private async Task ApplyPreset()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        (_from, _to) = _preset switch
+        {
+            "today" => (today, today),
+            "week"  => (today.AddDays(-(int)today.DayOfWeek + 1), today),
+            "month" => (new DateOnly(today.Year, today.Month, 1), today),
+            _       => (_from, _to)
+        };
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        (_entries, _journal) = await Handler.GetRangeDataAsync(new ReportRange(_from, _to));
+    }
+
+    private async Task CopyToClipboard(string text)
+    {
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", text);
+        ShowStatus("Copied to clipboard!", false);
+    }
+
+    private async Task DownloadMarkdown(string text)
+    {
+        var filename = _tab == "daily" ? $"{_from:yyyy-MM-dd}.md"
+                     : _tab == "review" ? $"review-{_from:yyyy-MM-dd}-{_to:yyyy-MM-dd}.md"
+                     : $"weekly-{_from:yyyy-MM-dd}-{_to:yyyy-MM-dd}.md";
+
+        var bytes = System.Text.Encoding.UTF8.GetBytes(text);
+        var base64 = Convert.ToBase64String(bytes);
+        await JS.InvokeVoidAsync("downloadBase64File", filename, base64);
+    }
+
+    private async Task PushToObsidian(string markdown)
+    {
+        _statusMessage = null;
+        try
+        {
+            var (path, appended) = await Handler.PushDailyNoteAsync(_from, markdown, _settings);
+            ShowStatus($"{(appended ? "Appended to" : "Saved to")} {path}", false);
+        }
+        catch (Exception ex)
+        {
+            ShowStatus(ex.Message, true);
+        }
+    }
+
+    private void ShowStatus(string msg, bool isError)
+    {
+        _statusMessage = msg;
+        _statusIsError = isError;
+    }
+
+    private static string FormatHours(double hours)
+    {
+        var h = (int)hours;
+        var m = (int)Math.Round((hours - h) * 60);
+        return $"{h}h {m}m";
+    }
+}
