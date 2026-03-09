@@ -36,3 +36,10 @@ window.renderDonutChart = (canvasId, labels, data, colors) => {
         }
     });
 };
+
+window.downloadBase64File = (filename, base64) => {
+    const link = document.createElement('a');
+    link.href = 'data:text/markdown;base64,' + base64;
+    link.download = filename;
+    link.click();
+};

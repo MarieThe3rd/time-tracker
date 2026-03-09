@@ -5,6 +5,8 @@ using TimeTracker.Web.Features.Timer.ManualEntry;
 using TimeTracker.Web.Features.Journal.AddEntry;
 using TimeTracker.Web.Features.Journal.ListEntries;
 using TimeTracker.Web.Features.Dashboard;
+using TimeTracker.Web.Features.Reports;
+using TimeTracker.Web.Features.Reports.DailyNote;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,6 +32,10 @@ builder.Services.AddScoped<UpdateProductivityHandler>();
 
 // Dashboard
 builder.Services.AddScoped<DashboardHandler>();
+
+// Reports
+builder.Services.AddScoped<ReportsHandler>();
+builder.Services.AddScoped<MarkdownExportService>();
 
 var app = builder.Build();
 
