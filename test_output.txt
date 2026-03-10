@@ -1,0 +1,11 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  TimeTracker.Web -> C:\git\My-Apps\time-tracker\src\TimeTracker.Web\bin\Debug\net10.0\TimeTracker.Web.dll
+  TimeTracker.Tests -> C:\git\My-Apps\time-tracker\src\TimeTracker.Tests\bin\Debug\net10.0\TimeTracker.Tests.dll
+Test run for C:\git\My-Apps\time-tracker\src\TimeTracker.Tests\bin\Debug\net10.0\TimeTracker.Tests.dll (.NETCoreApp,Version=v10.0)
+VSTest version 18.0.1 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+
+Passed!  - Failed:     0, Passed:   158, Skipped:     0, Total:   158, Duration: 715 ms - TimeTracker.Tests.dll (net10.0)

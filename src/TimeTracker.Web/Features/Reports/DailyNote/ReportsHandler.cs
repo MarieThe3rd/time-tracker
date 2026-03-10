@@ -79,4 +79,25 @@ public class ReportsHandler(AppDbContext db)
         var idx = markdown.IndexOf(heading, StringComparison.Ordinal);
         return idx >= 0 ? markdown[idx..] : markdown;
     }
+
+    /// <summary>
+    /// Writes the AI usage weekly report markdown to a standalone file in the vault root.
+    /// File name: AI-Usage-Report-{from}-to-{to}.md
+    /// Returns the file path and whether an existing file was overwritten.
+    /// </summary>
+    public async Task<(string Path, bool Overwritten)> PushAiUsageReportAsync(
+        DateOnly from,
+        DateOnly to,
+        string markdown,
+        UserSettings settings)
+    {
+        if (string.IsNullOrWhiteSpace(settings.VaultRootPath))
+            throw new InvalidOperationException("Vault root path is not configured. Go to Settings.");
+
+        Directory.CreateDirectory(settings.VaultRootPath);
+        var filePath = Path.Combine(settings.VaultRootPath, $"AI-Usage-Report-{from:yyyy-MM-dd}-to-{to:yyyy-MM-dd}.md");
+        bool overwritten = File.Exists(filePath);
+        await File.WriteAllTextAsync(filePath, markdown);
+        return (filePath, overwritten);
+    }
 }

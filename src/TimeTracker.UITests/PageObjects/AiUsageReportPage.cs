@@ -1,14 +1,17 @@
 using Microsoft.Playwright;
-using System.Threading.Tasks;
+using TimeTracker.UITests.Infrastructure;
 
 namespace TimeTracker.UITests.PageObjects;
 
-public class AiUsageReportPage
+public class AiUsageReportPage(IPage page) : PageObjectBase(page)
 {
-  private readonly IPage _page;
-  public AiUsageReportPage(IPage page) => _page = page;
+  protected override string Route => "/reports/ai-usage";
 
-  public async Task GotoAsync() => await _page.GotoAsync("/reports/ai-usage");
-  public async Task<bool> HasAiUsageTableAsync() => await _page.Locator("table").IsVisibleAsync();
-  public async Task<string> GetHeaderAsync() => await _page.Locator("h4").InnerTextAsync();
+  private ILocator DateRangeCard => Page.Locator(".card").First;
+  public ILocator FromDateInput => DateRangeCard.Locator("input[type='date']").First;
+  public ILocator ToDateInput => DateRangeCard.Locator("input[type='date']").Last;
+  public ILocator EmptyState => Page.Locator("text=No AI usage entries in this range.");
+  public ILocator DetailsTable => Page.Locator("table").First;
+  public ILocator ChartCanvas => Page.Locator("#aiUsageChart");
+  public ILocator SidebarLink => Page.Locator("a[href='/reports/ai-usage']");
 }

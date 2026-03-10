@@ -1,22 +1,55 @@
-using System.Threading.Tasks;
-using Microsoft.Playwright;
-using Xunit;
+using TimeTracker.UITests.Infrastructure;
 using TimeTracker.UITests.PageObjects;
 
 namespace TimeTracker.UITests.Tests;
 
-public class AiUsageReportTests : IClassFixture<AppCollection>
+[Collection("App")]
+public class AiUsageReportTests(AppFixture app)
 {
-  private readonly AppFixture _fixture;
-  public AiUsageReportTests(AppCollection collection) => _fixture = collection.Fixture;
+  [Fact]
+  public async Task AiUsageReportPage_Loads_ShowsHeading_AndDateInputs()
+  {
+    var page = await app.NewPageAsync();
+    var aiPage = new AiUsageReportPage(page);
+
+    await aiPage.GotoAsync();
+
+    var heading = await aiPage.GetHeadingAsync();
+
+    Assert.Contains("AI Usage Report", heading);
+    Assert.True(await aiPage.FromDateInput.IsVisibleAsync());
+    Assert.True(await aiPage.ToDateInput.IsVisibleAsync());
+  }
 
   [Fact]
-  public async Task AiUsageReportPage_Loads_And_Shows_Header()
+  public async Task AiUsageReportPage_ShowsEitherEmptyStateOrReportData()
   {
-    var page = await _fixture.NewPageAsync();
+    var page = await app.NewPageAsync();
     var aiPage = new AiUsageReportPage(page);
+
     await aiPage.GotoAsync();
-    Assert.Contains("AI Usage Report", await aiPage.GetHeaderAsync());
-    Assert.True(await aiPage.HasAiUsageTableAsync());
+
+    var showsEmptyState = await aiPage.EmptyState.IsVisibleAsync();
+    var showsTable = await aiPage.DetailsTable.IsVisibleAsync();
+    var showsChart = await aiPage.ChartCanvas.IsVisibleAsync();
+
+    Assert.True(showsEmptyState || showsTable);
+    Assert.True(showsEmptyState || showsChart);
+  }
+
+  [Fact]
+  public async Task AiUsageReportPage_SidebarLink_NavigatesToAiUsageRoute()
+  {
+    var page = await app.NewPageAsync();
+
+    await page.GotoAsync("/");
+    await page.Locator("h4").First.WaitForAsync();
+
+    var aiPage = new AiUsageReportPage(page);
+    await aiPage.SidebarLink.ClickAsync();
+    await aiPage.WaitForBlazorAsync();
+
+    Assert.Contains("/reports/ai-usage", page.Url);
+    Assert.Contains("AI Usage Report", await aiPage.GetHeadingAsync());
   }
 }

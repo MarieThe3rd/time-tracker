@@ -106,7 +106,7 @@ The system stores a reminder date independent of due date.
 The system supports a `deliverable to` field for identifying who or what the work is for.
 
 ### FR-008 Obsidian export
-Users can export task reports as markdown files suitable for an Obsidian vault.
+Users can export task reports as markdown files suitable for an Obsidian vault. Configurable export options include date range, note location and name, status/type filters, and report format.
 
 ### FR-009 Reporting
 Users can generate task-oriented reports such as active tasks, tasks due soon, completed tasks over a date range, ideas, and squirrels.

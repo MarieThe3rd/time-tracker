@@ -1,4 +1,5 @@
 using TimeTracker.Web.Data.Models;
+using TimeTracker.Web.Features.Reports.AiUsage;
 
 namespace TimeTracker.Web.Features.Reports;
 
@@ -207,6 +208,48 @@ public class MarkdownExportService
 
         return sb.ToString();
     }
+
+    /// <summary>
+    /// Builds a markdown AI usage weekly report with YAML frontmatter suitable for an Obsidian vault.
+    /// Emits a single-row placeholder when <paramref name="weeks"/> is empty.
+    /// </summary>
+    public string BuildAiUsageWeeklyReport(DateOnly from, DateOnly to, List<AiUsageWeeklyItem> weeks)
+    {
+        var sb = new System.Text.StringBuilder();
+
+        // YAML frontmatter — consistent style with BuildWeeklySummary / BuildReviewExport
+        sb.AppendLine("---");
+        sb.AppendLine($"period: \"{from:yyyy-MM-dd} to {to:yyyy-MM-dd}\"");
+        sb.AppendLine("tags: [time-tracker, ai-usage-report]");
+        sb.AppendLine("---");
+        sb.AppendLine();
+        sb.AppendLine($"# AI Usage Report for {from:yyyy-MM-dd} to {to:yyyy-MM-dd}");
+        sb.AppendLine();
+
+        sb.AppendLine("| Week Start | Week End | AI-Assisted Work Done | Value Added | Time Saved (minutes) | Notes |");
+        sb.AppendLine("|------|------|-----------------------|-------------|----------------------|-------|");
+
+        if (weeks.Count == 0)
+        {
+            sb.AppendLine("| — | — | 0 | — | 0 | No AI activity recorded. |");
+        }
+        else
+        {
+            foreach (var w in weeks)
+            {
+                var valueAdded = string.IsNullOrWhiteSpace(w.ValueAdded) ? "—" : EscapePipe(w.ValueAdded);
+                var notes = string.IsNullOrWhiteSpace(w.Notes) ? "—" : EscapePipe(w.Notes);
+                sb.AppendLine($"| {w.WeekStart:yyyy-MM-dd} | {w.WeekEnd:yyyy-MM-dd} | {w.AiTaskCount} | {valueAdded} | {w.TotalTimeSavedMinutes} | {notes} |");
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Escapes pipe characters in user-supplied strings so they do not break markdown table columns.
+    /// </summary>
+    private static string EscapePipe(string s) => s.Replace("|", "\\|");
 
     private static string FormatHours(double hours)
     {
