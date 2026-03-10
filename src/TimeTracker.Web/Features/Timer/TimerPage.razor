@@ -7,6 +7,7 @@
 @inject GetTodayEntriesHandler TodayHandler
 @inject DeleteTimeEntryHandler DeleteHandler
 @inject UpdateProductivityHandler ProductivityHandler
+@inject UpdateTimeEntryHandler UpdateEntryHandler
 @inject ManualEntryHandler ManualHandler
 @inject AppDbContext Db
 @inject RunningTimerService TimerService
@@ -59,7 +60,7 @@
         <div class="card shadow-sm">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <span class="fw-semibold">Manual Entry</span>
-                <button class="btn btn-sm btn-outline-secondary" @onclick="() => _showManual = !_showManual">
+                <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleManualEntry">
                     @(_showManual ? "Hide" : "Show")
                 </button>
             </div>
@@ -90,10 +91,36 @@
                         <label class="form-label">Description</label>
                         <input class="form-control" @bind="_manualDescription" />
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Productivity</label>
-                        <StarRatingPicker Rating="_manualRating" OnRatingChanged="r => _manualRating = r" />
+                    <div class="mb-2">
+                        <label class="form-label">Value Added</label>
+                        <input class="form-control" @bind="_manualValueAdded" />
                     </div>
+                    <div class="form-check mb-2">
+                        <input id="manual-is-break" class="form-check-input" type="checkbox" @bind="_manualIsBreak" />
+                        <label class="form-check-label" for="manual-is-break">Break Entry</label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input id="manual-ai-used" class="form-check-input" type="checkbox" @bind="_manualAiUsed" />
+                        <label class="form-check-label" for="manual-ai-used">AI-Used</label>
+                    </div>
+                    @if (_manualAiUsed)
+                    {
+                        <div class="mb-2">
+                            <label class="form-label">Time Saved Using AI (minutes)</label>
+                            <input type="number" min="0" class="form-control" @bind="_manualAiTimeSavedMinutes" />
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">AI Notes</label>
+                            <textarea class="form-control" rows="2" @bind="_manualAiNotes"></textarea>
+                        </div>
+                    }
+                    @if (!_manualIsBreak)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Productivity</label>
+                            <StarRatingPicker Rating="_manualRating" OnRatingChanged="r => _manualRating = r" />
+                        </div>
+                    }
                     @if (_manualError is not null)
                     {
                         <div class="alert alert-danger py-1">@_manualError</div>
@@ -125,8 +152,10 @@
                             <th>Time</th>
                             <th>Category</th>
                             <th>Description</th>
+                            <th>Value Added</th>
                             <th>Duration</th>
                             <th>Productivity</th>
+                            <th>AI Used</th>
                             <th></th>
                         </tr>
                     </thead>
@@ -144,14 +173,27 @@
                                     }
                                 </td>
                                 <td class="text-muted small">@entry.Description</td>
+                                <td class="text-muted small">@entry.ValueAdded</td>
                                 <td class="small text-nowrap">@FormatDuration(entry.Duration)</td>
                                 <td>
-                                    <StarRatingPicker Rating="@(entry.ProductivityRating ?? 0)"
-                                                     OnRatingChanged="r => UpdateRating(entry.Id, r)" />
+                                    @if (entry.IsBreak)
+                                    {
+                                        <span class="small text-muted">Break</span>
+                                    }
+                                    else
+                                    {
+                                        <StarRatingPicker Rating="@(entry.ProductivityRating ?? 0)"
+                                                          OnRatingChanged="r => UpdateRating(entry.Id, r)" />
+                                    }
+                                </td>
+                                <td class="small">
+                                    @(entry.AiUsed ? $"Yes ({entry.AiTimeSavedMinutes ?? 0}m)" : "No")
                                 </td>
                                 <td>
-                                    <button class="btn btn-sm btn-outline-danger"
-                                            @onclick="() => DeleteEntry(entry.Id)">
+                                    <button class="btn btn-sm btn-outline-secondary me-1" @onclick="() => BeginEdit(entry)">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteEntry(entry.Id)">
                                         <i class="bi bi-trash"></i>
                                     </button>
                                 </td>
@@ -164,6 +206,77 @@
     </div>
 </div>
 
+@if (_editingEntryId.HasValue)
+{
+    <div class="card shadow-sm mt-3">
+        <div class="card-header fw-semibold">Edit Entry</div>
+        <div class="card-body">
+            <div class="row g-2 mb-2">
+                <div class="col-6">
+                    <label class="form-label">Start</label>
+                    <input type="datetime-local" class="form-control" @bind="_editStart" />
+                </div>
+                <div class="col-6">
+                    <label class="form-label">End</label>
+                    <input type="datetime-local" class="form-control" @bind="_editEnd" />
+                </div>
+            </div>
+            <div class="mb-2">
+                <label class="form-label">Category</label>
+                <select class="form-select" @bind="_editCategoryId">
+                    <option value="">— Select —</option>
+                    @foreach (var cat in _categories)
+                    {
+                        <option value="@cat.Id">@cat.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="mb-2">
+                <label class="form-label">Description</label>
+                <input class="form-control" @bind="_editDescription" />
+            </div>
+            <div class="mb-2">
+                <label class="form-label">Value Added</label>
+                <input class="form-control" @bind="_editValueAdded" />
+            </div>
+            <div class="form-check mb-2">
+                <input id="edit-is-break" class="form-check-input" type="checkbox" @bind="_editIsBreak" />
+                <label class="form-check-label" for="edit-is-break">Break Entry</label>
+            </div>
+            <div class="form-check mb-2">
+                <input id="edit-ai-used" class="form-check-input" type="checkbox" @bind="_editAiUsed" />
+                <label class="form-check-label" for="edit-ai-used">AI-Used</label>
+            </div>
+            @if (_editAiUsed)
+            {
+                <div class="mb-2">
+                    <label class="form-label">Time Saved Using AI (minutes)</label>
+                    <input type="number" min="0" class="form-control" @bind="_editAiTimeSavedMinutes" />
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">AI Notes</label>
+                    <textarea class="form-control" rows="2" @bind="_editAiNotes"></textarea>
+                </div>
+            }
+            @if (!_editIsBreak)
+            {
+                <div class="mb-3">
+                    <label class="form-label">Productivity</label>
+                    <StarRatingPicker Rating="_editRating" OnRatingChanged="r => _editRating = r" />
+                </div>
+            }
+            @if (_editError is not null)
+            {
+                <div class="alert alert-danger py-1">@_editError</div>
+            }
+            <div class="d-flex gap-2">
+                <button class="btn btn-primary" @onclick="SaveEdit">Save Changes</button>
+                <button class="btn btn-outline-secondary" @onclick="CancelEdit">Cancel</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private List<WorkCategory> _categories = [];
     private List<TimeEntry> _todayEntries = [];
@@ -174,12 +287,30 @@
     private DotNetObjectReference<TimerPage>? _dotNetRef;
 
     private bool _showManual = false;
-    private DateTime _manualStart = DateTime.Now.AddHours(-1);
-    private DateTime _manualEnd = DateTime.Now;
+    private DateTime _manualStart = DateTime.Today.AddHours(8);
+    private DateTime _manualEnd = DateTime.Today.AddHours(9);
     private int? _manualCategoryId;
     private string? _manualDescription;
     private int _manualRating = 0;
+    private string? _manualValueAdded;
+    private bool _manualIsBreak;
+    private bool _manualAiUsed;
+    private int? _manualAiTimeSavedMinutes;
+    private string? _manualAiNotes;
     private string? _manualError;
+
+    private int? _editingEntryId;
+    private DateTime _editStart = DateTime.Now.AddHours(-1);
+    private DateTime _editEnd = DateTime.Now;
+    private int? _editCategoryId;
+    private string? _editDescription;
+    private int _editRating;
+    private string? _editValueAdded;
+    private bool _editIsBreak;
+    private bool _editAiUsed;
+    private int? _editAiTimeSavedMinutes;
+    private string? _editAiNotes;
+    private string? _editError;
 
     private string _totalToday = "0h 0m";
 
@@ -187,6 +318,7 @@
     {
         _categories = await Db.WorkCategories.OrderBy(c => c.Name).ToListAsync();
         await RefreshEntries();
+        await SetManualDefaultsAsync();
 
         // Sync timer state if already running
         if (TimerService.IsRunning)
@@ -225,17 +357,34 @@
             _manualError = "End time must be after start time.";
             return;
         }
-        var input = new ManualEntryInput(
-            _manualStart.ToUniversalTime(),
-            _manualEnd.ToUniversalTime(),
-            _manualCategoryId,
-            _manualDescription,
-            _manualRating == 0 ? null : _manualRating);
-        await ManualHandler.HandleAsync(input);
-        _showManual = false;
-        _manualRating = 0;
-        _manualDescription = null;
-        await RefreshEntries();
+        try
+        {
+            var input = new ManualEntryInput(
+                _manualStart.ToUniversalTime(),
+                _manualEnd.ToUniversalTime(),
+                _manualCategoryId,
+                _manualDescription,
+                _manualIsBreak ? null : (_manualRating == 0 ? null : _manualRating),
+                _manualValueAdded,
+                _manualIsBreak,
+                _manualAiUsed,
+                _manualAiUsed ? _manualAiTimeSavedMinutes : null,
+                _manualAiUsed ? _manualAiNotes : null);
+            await ManualHandler.HandleAsync(input);
+            _showManual = false;
+            _manualRating = 0;
+            _manualDescription = null;
+            _manualValueAdded = null;
+            _manualIsBreak = false;
+            _manualAiUsed = false;
+            _manualAiTimeSavedMinutes = null;
+            _manualAiNotes = null;
+            await RefreshEntries();
+        }
+        catch (ArgumentException ex)
+        {
+            _manualError = ex.Message;
+        }
     }
 
     private async Task DeleteEntry(int id)
@@ -250,6 +399,65 @@
         await RefreshEntries();
     }
 
+    private void BeginEdit(TimeEntry entry)
+    {
+        _editingEntryId = entry.Id;
+        _editStart = entry.StartTime.ToLocalTime();
+        _editEnd = entry.EndTime?.ToLocalTime() ?? entry.StartTime.ToLocalTime().AddHours(1);
+        _editCategoryId = entry.WorkCategoryId;
+        _editDescription = entry.Description;
+        _editRating = entry.ProductivityRating ?? 0;
+        _editValueAdded = entry.ValueAdded;
+        _editIsBreak = entry.IsBreak;
+        _editAiUsed = entry.AiUsed;
+        _editAiTimeSavedMinutes = entry.AiTimeSavedMinutes;
+        _editAiNotes = entry.AiNotes;
+        _editError = null;
+    }
+
+    private void CancelEdit()
+    {
+        _editingEntryId = null;
+        _editError = null;
+    }
+
+    private async Task SaveEdit()
+    {
+        if (!_editingEntryId.HasValue)
+            return;
+
+        _editError = null;
+        if (_editEnd <= _editStart)
+        {
+            _editError = "End time must be after start time.";
+            return;
+        }
+
+        try
+        {
+            var input = new UpdateTimeEntryInput(
+                _editingEntryId.Value,
+                _editStart.ToUniversalTime(),
+                _editEnd.ToUniversalTime(),
+                _editCategoryId,
+                _editDescription,
+                _editIsBreak ? null : (_editRating == 0 ? null : _editRating),
+                _editValueAdded,
+                _editIsBreak,
+                _editAiUsed,
+                _editAiUsed ? _editAiTimeSavedMinutes : null,
+                _editAiUsed ? _editAiNotes : null);
+
+            await UpdateEntryHandler.HandleAsync(input);
+            _editingEntryId = null;
+            await RefreshEntries();
+        }
+        catch (ArgumentException ex)
+        {
+            _editError = ex.Message;
+        }
+    }
+
     private async Task RefreshEntries()
     {
         _todayEntries = await TodayHandler.HandleAsync();
@@ -257,6 +465,48 @@
             .Where(e => e.Duration.HasValue)
             .Aggregate(TimeSpan.Zero, (acc, e) => acc + e.Duration!.Value);
         _totalToday = $"{(int)total.TotalHours}h {total.Minutes}m";
+    }
+
+    private async Task ToggleManualEntry()
+    {
+        _showManual = !_showManual;
+        if (_showManual)
+        {
+            await SetManualDefaultsAsync();
+        }
+    }
+
+    private async Task SetManualDefaultsAsync()
+    {
+        var todayLocalStart = DateTime.Today;
+        var tomorrowLocalStart = todayLocalStart.AddDays(1);
+        var todayStartUtc = todayLocalStart.ToUniversalTime();
+        var tomorrowStartUtc = tomorrowLocalStart.ToUniversalTime();
+
+        var latestEndUtc = await Db.TimeEntries
+            .Where(e => e.EndTime.HasValue
+                && e.EndTime.Value >= todayStartUtc
+                && e.EndTime.Value < tomorrowStartUtc)
+            .OrderByDescending(e => e.EndTime)
+            .Select(e => e.EndTime)
+            .FirstOrDefaultAsync();
+
+        if (latestEndUtc.HasValue)
+        {
+            _manualStart = RoundUpToNextHalfHour(latestEndUtc.Value.ToLocalTime());
+            _manualEnd = _manualStart.AddHours(1);
+            return;
+        }
+
+        _manualStart = todayLocalStart.AddHours(8);
+        _manualEnd = _manualStart.AddHours(1);
+    }
+
+    private static DateTime RoundUpToNextHalfHour(DateTime value)
+    {
+        var halfHourTicks = TimeSpan.FromMinutes(30).Ticks;
+        var roundedTicks = ((value.Ticks + halfHourTicks - 1) / halfHourTicks) * halfHourTicks;
+        return new DateTime(roundedTicks, value.Kind);
     }
 
     private static string FormatDuration(TimeSpan? d) =>

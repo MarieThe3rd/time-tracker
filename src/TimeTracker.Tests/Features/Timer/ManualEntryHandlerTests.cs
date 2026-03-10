@@ -21,7 +21,7 @@ public class ManualEntryHandlerTests
         var handler = new ManualEntryHandler(db);
         var start = DateTime.UtcNow.AddHours(-2);
         var end = DateTime.UtcNow.AddHours(-1);
-        var input = new ManualEntryInput(start, end, null, "Planning session", 4);
+        var input = new ManualEntryInput(start, end, null, "Planning session", 4, "Planned sprint tasks", false, false, null, null);
 
         var entry = await handler.HandleAsync(input);
 
@@ -30,6 +30,7 @@ public class ManualEntryHandlerTests
         Assert.Equal(end, entry.EndTime);
         Assert.Equal("Planning session", entry.Description);
         Assert.Equal(4, entry.ProductivityRating);
+        Assert.Equal("Planned sprint tasks", entry.ValueAdded);
         Assert.Equal(1, await db.TimeEntries.CountAsync());
     }
 
@@ -41,7 +42,7 @@ public class ManualEntryHandlerTests
         var input = new ManualEntryInput(
             DateTime.UtcNow,
             DateTime.UtcNow.AddHours(-1), // end before start
-            null, null, null);
+            null, null, null, null, false, false, null, null);
 
         await Assert.ThrowsAsync<ArgumentException>(() => handler.HandleAsync(input));
     }
@@ -54,7 +55,7 @@ public class ManualEntryHandlerTests
         var input = new ManualEntryInput(
             DateTime.UtcNow.AddHours(-1),
             DateTime.UtcNow,
-            null, "Deep work", 5);
+            null, "Deep work", 5, null, false, false, null, null);
 
         var entry = await handler.HandleAsync(input);
 
@@ -67,7 +68,7 @@ public class ManualEntryHandlerTests
         using var db = CreateDb();
         var handler = new ManualEntryHandler(db);
         var time = DateTime.UtcNow;
-        var input = new ManualEntryInput(time, time, null, null, null);
+        var input = new ManualEntryInput(time, time, null, null, null, null, false, false, null, null);
 
         await Assert.ThrowsAsync<ArgumentException>(() => handler.HandleAsync(input));
     }
@@ -83,7 +84,7 @@ public class ManualEntryHandlerTests
         var input = new ManualEntryInput(
             DateTime.UtcNow.AddHours(-1),
             DateTime.UtcNow,
-            null, null, rating);
+            null, null, rating, null, false, false, null, null);
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => handler.HandleAsync(input));
     }
@@ -96,7 +97,7 @@ public class ManualEntryHandlerTests
         var input = new ManualEntryInput(
             DateTime.UtcNow.AddHours(-1),
             DateTime.UtcNow,
-            null, "No rating", null);
+            null, "No rating", null, null, false, false, null, null);
 
         var entry = await handler.HandleAsync(input);
 
@@ -111,7 +112,7 @@ public class ManualEntryHandlerTests
         var input = new ManualEntryInput(
             DateTime.UtcNow.AddHours(-1),
             DateTime.UtcNow,
-            null, null, null);
+            null, null, null, null, false, false, null, null);
 
         var entry = await handler.HandleAsync(input);
 
@@ -119,5 +120,48 @@ public class ManualEntryHandlerTests
         Assert.Null(entry.WorkCategoryId);
         Assert.Null(entry.Description);
         Assert.Null(entry.ProductivityRating);
+    }
+
+    [Fact]
+    public async Task HandleAsync_BreakEntryWithProductivity_ThrowsArgumentException()
+    {
+        using var db = CreateDb();
+        var handler = new ManualEntryHandler(db);
+        var input = new ManualEntryInput(
+            DateTime.UtcNow.AddHours(-1),
+            DateTime.UtcNow,
+            null, "Break", 3, null, true, false, null, null);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => handler.HandleAsync(input));
+    }
+
+    [Fact]
+    public async Task HandleAsync_AiUsedWithoutDetails_ThrowsArgumentException()
+    {
+        using var db = CreateDb();
+        var handler = new ManualEntryHandler(db);
+        var input = new ManualEntryInput(
+            DateTime.UtcNow.AddHours(-1),
+            DateTime.UtcNow,
+            null, "AI task", null, "Automated tests", false, true, null, null);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => handler.HandleAsync(input));
+    }
+
+    [Fact]
+    public async Task HandleAsync_AiUsedWithDetails_PersistsAiFields()
+    {
+        using var db = CreateDb();
+        var handler = new ManualEntryHandler(db);
+        var input = new ManualEntryInput(
+            DateTime.UtcNow.AddHours(-1),
+            DateTime.UtcNow,
+            null, "Refactor", 4, "Reduced boilerplate", false, true, 25, "Used Copilot to scaffold repetitive mapping code.");
+
+        var entry = await handler.HandleAsync(input);
+
+        Assert.True(entry.AiUsed);
+        Assert.Equal(25, entry.AiTimeSavedMinutes);
+        Assert.Equal("Used Copilot to scaffold repetitive mapping code.", entry.AiNotes);
     }
 }

@@ -109,4 +109,24 @@ public class UpdateProductivityHandlerTests
         var entry = await db.TimeEntries.FindAsync(3);
         Assert.Equal(5, entry!.ProductivityRating);
     }
+
+    [Fact]
+    public async Task HandleAsync_BreakEntry_DoesNotSetProductivity()
+    {
+        using var db = CreateDb();
+        db.TimeEntries.Add(new TimeEntry
+        {
+            Id = 4,
+            StartTime = DateTime.UtcNow.AddHours(-1),
+            EndTime = DateTime.UtcNow,
+            IsBreak = true
+        });
+        await db.SaveChangesAsync();
+
+        var handler = new UpdateProductivityHandler(db);
+        await handler.HandleAsync(4, 5);
+
+        var entry = await db.TimeEntries.FindAsync(4);
+        Assert.Null(entry!.ProductivityRating);
+    }
 }

@@ -14,6 +14,9 @@ public class UpdateProductivityHandler(AppDbContext db)
         var entry = await _db.TimeEntries.FindAsync(entryId);
         if (entry is not null)
         {
+            if (entry.IsBreak)
+                return;
+
             entry.ProductivityRating = rating;
             await _db.SaveChangesAsync();
         }

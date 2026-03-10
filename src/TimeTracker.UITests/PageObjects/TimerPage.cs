@@ -22,9 +22,23 @@ public class TimerPage(IPage page) : PageObjectBase(page)
     private ILocator ManualEntrySection =>
         Page.Locator(".card", new() { Has = Page.Locator(".card-header", new() { HasText = "Manual Entry" }) });
     public ILocator SaveEntryButton => ManualEntrySection.Locator("button", new() { HasText = "Save Entry" });
+    public ILocator ManualStartInput => ManualEntrySection.Locator("input[type='datetime-local']").First;
+    public ILocator ManualEndInput => ManualEntrySection.Locator("input[type='datetime-local']").Nth(1);
+    public ILocator ManualDescriptionInput => ManualEntrySection.Locator("label:has-text('Description') + input.form-control");
+    public ILocator ManualValueAddedInput => ManualEntrySection.Locator("label:has-text('Value Added') + input.form-control");
+    public ILocator ManualBreakCheckbox => ManualEntrySection.Locator("#manual-is-break");
+    public ILocator ManualAiUsedCheckbox => ManualEntrySection.Locator("#manual-ai-used");
+    public ILocator ManualAiTimeSavedInput => ManualEntrySection.Locator("label:has-text('Time Saved Using AI (minutes)') + input");
+    public ILocator ManualAiNotesInput => ManualEntrySection.Locator("label:has-text('AI Notes') + textarea");
+    public ILocator ManualCategorySelect => ManualEntrySection.Locator("select.form-select");
 
     public ILocator TodaysEntriesCard => Page.Locator(".card-header", new() { HasText = "Today's Entries" });
     public ILocator TimerStrip => Page.Locator(".timer-strip");
+    public ILocator EditEntryCard => Page.Locator(".card", new() { Has = Page.Locator(".card-header", new() { HasText = "Edit Entry" }) });
+    public ILocator EditStartInput => EditEntryCard.Locator("input[type='datetime-local']").First;
+    public ILocator EditDescriptionInput => EditEntryCard.Locator("label:has-text('Description') + input.form-control");
+    public ILocator EditCategorySelect => EditEntryCard.Locator("select.form-select");
+    public ILocator SaveChangesButton => EditEntryCard.Locator("button", new() { HasText = "Save Changes" });
 
     public async Task StartTimerAsync(string? description = null)
     {
@@ -51,5 +65,51 @@ public class TimerPage(IPage page) : PageObjectBase(page)
     {
         await ManualEntryToggle.ClickAsync();
         await WaitForBlazorAsync();
+    }
+
+    public async Task SaveManualEntryAsync(
+        string start,
+        string end,
+        string description,
+        string? valueAdded,
+        bool isBreak,
+        bool aiUsed,
+        int? aiTimeSavedMinutes,
+        string? aiNotes)
+    {
+        await ManualStartInput.FillAsync(start);
+        await ManualEndInput.FillAsync(end);
+        await ManualDescriptionInput.FillAsync(description);
+        await ManualValueAddedInput.FillAsync(valueAdded ?? string.Empty);
+
+        if (isBreak != await ManualBreakCheckbox.IsCheckedAsync())
+            await ManualBreakCheckbox.ClickAsync();
+
+        if (aiUsed != await ManualAiUsedCheckbox.IsCheckedAsync())
+            await ManualAiUsedCheckbox.ClickAsync();
+
+        if (aiUsed)
+        {
+            await ManualAiTimeSavedInput.FillAsync((aiTimeSavedMinutes ?? 0).ToString());
+            await ManualAiNotesInput.FillAsync(aiNotes ?? string.Empty);
+        }
+
+        await SaveEntryButton.ClickAsync();
+        await WaitForBlazorAsync();
+    }
+
+    public async Task StartEditFirstEntryAsync()
+    {
+        var firstEditButton = Page.Locator("button.btn-outline-secondary", new() { Has = Page.Locator("i.bi-pencil") }).First;
+        await firstEditButton.ClickAsync();
+        await EditEntryCard.WaitForAsync();
+    }
+
+    public async Task StartEditEntryByDescriptionAsync(string description)
+    {
+        var row = Page.Locator("tbody tr", new() { HasText = description }).First;
+        var editButton = row.Locator("button.btn-outline-secondary", new() { Has = Page.Locator("i.bi-pencil") });
+        await editButton.ClickAsync();
+        await EditEntryCard.WaitForAsync();
     }
 }
