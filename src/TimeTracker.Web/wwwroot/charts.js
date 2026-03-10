@@ -53,3 +53,56 @@ window.registerTimerShortcut = (dotnetRef) => {
         }
     });
 };
+// AI Usage Chart (bar and line)
+window.renderAiUsageChart = (labels, counts, totals) => {
+    const canvas = document.getElementById('aiUsageChart');
+    if (!canvas) return;
+    const existing = Chart.getChart(canvas);
+    if (existing) existing.destroy();
+    new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'AI Usage Count',
+                    data: counts,
+                    backgroundColor: '#4f8cff',
+                    yAxisID: 'y',
+                },
+                {
+                    label: 'Total Time Saved (min)',
+                    data: totals,
+                    type: 'line',
+                    borderColor: '#00c896',
+                    backgroundColor: 'rgba(0,200,150,0.1)',
+                    yAxisID: 'y1',
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: { enabled: true }
+            },
+            scales: {
+                y: {
+                    type: 'linear',
+                    position: 'left',
+                    title: { display: true, text: 'Usage Count' },
+                    beginAtZero: true
+                },
+                y1: {
+                    type: 'linear',
+                    position: 'right',
+                    title: { display: true, text: 'Time Saved (min)' },
+                    beginAtZero: true,
+                    grid: { drawOnChartArea: false }
+                }
+            }
+        }
+    });
+};

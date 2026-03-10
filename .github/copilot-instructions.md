@@ -1,9 +1,6 @@
-# Copilot Instructions — My-Apps
+# Copilot Instructions — time-tracker
 
-This monorepo contains two projects:
-
-- **`time-tracker/`** — A Node.js app managed with the [Squad](https://github.com/bradygaster/squad) multi-agent CLI framework.
-- **`WeavingProjectPlanner/`** — A .NET solution (early stage).
+This is a **Blazor 10 / .NET** time tracking application. Squad CLI is used as a dev-tool for multi-agent workflows via `package.json` — it is not the app itself.
 
 ---
 
@@ -20,8 +17,6 @@ The `time-tracker` project uses `@bradygaster/squad-cli` as a dev dependency. Sq
 ### Running Squad
 
 ```bash
-cd time-tracker
-
 # Initialize Squad in the repo (first time only — creates .squad/)
 npx squad init
 
@@ -42,11 +37,11 @@ npx squad loop
 
 Once initialized, Squad stores its state under `.squad/` at the repo root:
 
-| File | Purpose |
-|------|---------|
-| `.squad/team.md` | Team roster, member roles, and Copilot capability profile |
-| `.squad/routing.md` | Work routing rules — which agent handles which type of issue |
-| `.squad/decisions.md` | Shared team decisions |
+| File                              | Purpose                                                       |
+| --------------------------------- | ------------------------------------------------------------- |
+| `.squad/team.md`                  | Team roster, member roles, and Copilot capability profile     |
+| `.squad/routing.md`               | Work routing rules — which agent handles which type of issue  |
+| `.squad/decisions.md`             | Shared team decisions                                         |
 | `.squad/agents/{name}/charter.md` | Per-agent domain expertise, coding style, and ownership areas |
 
 **Before starting any issue**, read `.squad/team.md` and `.squad/routing.md`. If the issue has a `squad:{member}` label, read that member's charter and work in their voice.
@@ -89,12 +84,14 @@ The Scribe agent will merge it into the shared decisions file.
 ## Coding Standards (time-tracker)
 
 ### C\# Conventions
+
 - Follow [Microsoft C# coding conventions](https://learn.microsoft.com/en-us/dotnet/csharp/fundamentals/coding-style/coding-conventions)
 - `PascalCase` — types, methods, properties, constants; `camelCase` — locals/parameters; `_camelCase` — private fields
 - `async`/`await` throughout — never `.Result` or `.Wait()`
 - Nullable reference types enabled; file-scoped namespaces
 
 ### Project Structure — Vertical Slice Architecture
+
 Each slice is self-contained: Blazor component(s) + handler class + slice-local models. No shared service layer. No MediatR.
 
 ```
@@ -102,28 +99,33 @@ TimeTracker.Web/
   Features/
     Timer/
       TimerPage.razor              ← page
+      RunningTimerService.cs       ← background timer state
       StartTimerHandler.cs         ← DbContext injected directly
       StopTimerHandler.cs
+      GetTodayEntriesHandler.cs
+      DeleteTimeEntryHandler.cs
+      UpdateTimeEntryHandler.cs
+      UpdateProductivityHandler.cs
       ManualEntry/
-        ManualEntryForm.razor
         ManualEntryHandler.cs
     Journal/
+      JournalChangeService.cs
       AddEntry/
         QuickAddPanel.razor
         AddEntryHandler.cs
       ListEntries/
         JournalPage.razor
         ListEntriesHandler.cs
+        DeleteJournalEntryHandler.cs
     Dashboard/
       DashboardPage.razor
       DashboardHandler.cs
     Reports/
+      MarkdownExportService.cs     ← builds Markdown, writes to vault
       DailyNote/
-        DailyNoteExport.razor
-        DailyNoteHandler.cs      ← builds Markdown, writes to vault
-      ReviewExport/
-        ReviewExportPage.razor
-        ReviewExportHandler.cs
+        ReportsPage.razor
+        ReportsHandler.cs
+      ReviewExport/                ← placeholder (not yet implemented)
     Settings/
       SettingsPage.razor
       SettingsHandler.cs
@@ -137,6 +139,7 @@ TimeTracker.Web/
 ```
 
 ### Testing
+
 - **Unit tests:** xUnit in `TimeTracker.Tests/` — built-in `Assert` only, no FluentAssertions (commercial license)
   - Handler classes tested with EF Core in-memory provider (`UseInMemoryDatabase`)
   - Mirror `Features/` slice structure in test project
@@ -149,20 +152,68 @@ TimeTracker.Web/
   - Install browsers once after clone: `pwsh bin/Debug/net10.0/playwright.ps1 install`
 
 ### Blazor Conventions
+
 - Use `@code { }` blocks unless logic is substantial (then code-behind is acceptable)
 - Parameters: `[Parameter]` with PascalCase names; event callbacks named `On{Event}`
 - Inject services with `@inject`; call `StateHasChanged()` only when necessary (e.g. timer ticks)
 
-### Testing
-- **xUnit** for all tests — no FluentAssertions (license concerns), use xUnit's built-in `Assert` class
-- Test project at `time-tracker/src/TimeTracker.Tests/`
-- Mirror the `Features/` slice structure in the test project
-- Use `Assert.Equal`, `Assert.True`, `Assert.NotNull`, etc. — no third-party assertion libraries
-- Handler classes tested directly with an in-memory EF Core provider (`UseInMemoryDatabase`)
-- Run a single test: `dotnet test --filter "FullyQualifiedName~YourTestClass.YourTestMethod"`
-
 ---
 
-### Resolving Paths
+# Repository AI instructions
 
-Always run `git rev-parse --show-toplevel` to find the repo root. All `.squad/` paths are relative to the repo root — do not assume CWD is the root, especially when working from a subdirectory or worktree.
+You are working in a Blazor 10 time tracking application written in C# on .NET.
+
+## Core delivery rules
+
+- Prefer small, safe, reviewable changes.
+- Preserve working behavior unless the requirement explicitly changes it.
+- Do not invent business rules. If a rule is missing, document the assumption in the relevant requirements or architecture document.
+- Before making cross-cutting changes, inspect existing patterns in the codebase and follow them unless they are clearly harmful.
+- Favor clarity over cleverness.
+
+## Architecture rules
+
+- Keep domain logic out of UI components when possible.
+- Prefer explicit domain models, service abstractions, and DTOs over weakly structured objects.
+- Keep persistence concerns separate from domain rules.
+- Add feature code in vertical slices where practical.
+- Design for future export and reporting needs.
+
+## Blazor and .NET rules
+
+- Use async APIs where appropriate.
+- Use dependency injection consistently.
+- Prefer strongly typed models and enums.
+- Use validation on input models.
+- Handle nullability intentionally.
+- Keep component code-behind and services readable and testable.
+
+## Testing rules
+
+- New behavior requires tests.
+- Bug fixes require a regression test when feasible.
+- Add unit tests for domain logic.
+- Add component or integration tests for critical flows when feasible.
+- Do not mark work complete if tests are missing or broken.
+
+## Documentation rules
+
+- Update requirements, architecture notes, and user-facing behavior docs when behavior changes.
+- Add concise XML comments only where they improve maintainability.
+- Keep markdown documentation factual and current.
+
+## Review rules
+
+- Perform a peer-review style pass before declaring work complete.
+- Look for missing tests, business rule mismatches, null issues, naming problems, hidden coupling, and export/reporting impacts.
+- Report risks and follow-up items explicitly.
+
+## Task Manager epic focus
+
+When working on task management features:
+
+- Support multiple task types and statuses.
+- Support create, start, due, and reminder dates.
+- Support export to an Obsidian vault as markdown-friendly output.
+- Keep reporting and filtering in scope from the start.
+- Consider accessibility and keyboard-friendly workflows.
