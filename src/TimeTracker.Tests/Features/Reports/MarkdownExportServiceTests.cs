@@ -1,5 +1,6 @@
 using TimeTracker.Web.Data.Models;
 using TimeTracker.Web.Features.Reports;
+using TimeTracker.Web.Features.Reports.AiUsage;
 
 namespace TimeTracker.Tests.Features.Reports;
 
@@ -259,5 +260,139 @@ public class MarkdownExportServiceTests
         };
         var md = _svc.BuildDailyNote(new DateOnly(2026, 3, 9), [entry], [], 0);
         Assert.Contains("1h 30m", md);
+    }
+
+    // ── BuildAiUsageWeeklyReport tests ──────────────────────────────────────────
+
+    private static List<AiUsageWeeklyItem> OneWeekList() =>
+    [
+        new AiUsageWeeklyItem
+        {
+            WeekStart             = new DateOnly(2026, 1, 5),
+            WeekEnd               = new DateOnly(2026, 1, 11),
+            AiTaskCount           = 3,
+            TotalTimeSavedMinutes = 45,
+            ValueAdded            = "Faster code review",
+            Notes                 = "Used Copilot for PR"
+        }
+    ];
+
+    [Fact]
+    public void BuildAiUsageWeeklyReport_FrontmatterAndHeading_Present()
+    {
+        var from = new DateOnly(2026, 1, 1);
+        var to   = new DateOnly(2026, 1, 31);
+        var md   = _svc.BuildAiUsageWeeklyReport(from, to, OneWeekList());
+
+        Assert.Contains("---", md);
+        Assert.Contains("tags: [time-tracker, ai-usage-report]", md);
+        Assert.Contains("# AI Usage Report for", md);
+    }
+
+    [Fact]
+    public void BuildAiUsageWeeklyReport_TableHeaders_Present()
+    {
+        var md = _svc.BuildAiUsageWeeklyReport(
+            new DateOnly(2026, 1, 1), new DateOnly(2026, 1, 31), OneWeekList());
+
+        Assert.Contains("| Week Start |", md);
+        Assert.Contains("| Week End |", md);
+        Assert.Contains("| AI-Assisted Work Done |", md);
+        Assert.Contains("| Value Added |", md);
+        Assert.Contains("| Time Saved (minutes) |", md);
+        Assert.Contains("| Notes |", md);
+    }
+
+    [Fact]
+    public void BuildAiUsageWeeklyReport_SingleWeekRow_ContainsExpectedValues()
+    {
+        var md = _svc.BuildAiUsageWeeklyReport(
+            new DateOnly(2026, 1, 1), new DateOnly(2026, 1, 31), OneWeekList());
+
+        Assert.Contains("2026-01-05", md);   // WeekStart date string
+        Assert.Contains("2026-01-11", md);   // WeekEnd date string
+        Assert.Contains("3", md);            // AiTaskCount
+        Assert.Contains("45", md);           // TotalTimeSavedMinutes
+        Assert.Contains("Faster code review", md);
+        Assert.Contains("Used Copilot for PR", md);
+    }
+
+    [Fact]
+    public void BuildAiUsageWeeklyReport_EmptyWeeks_ShowsPlaceholderRow()
+    {
+        var md = _svc.BuildAiUsageWeeklyReport(
+            new DateOnly(2026, 1, 1), new DateOnly(2026, 1, 31), []);
+
+        Assert.Contains("No AI activity recorded.", md);
+    }
+
+    [Fact]
+    public void BuildAiUsageWeeklyReport_MultipleWeeks_BothDatesAppear()
+    {
+        var weeks = new List<AiUsageWeeklyItem>
+        {
+            new() { WeekStart = new DateOnly(2026, 1, 5),  WeekEnd = new DateOnly(2026, 1, 11), AiTaskCount = 1, TotalTimeSavedMinutes = 10 },
+            new() { WeekStart = new DateOnly(2026, 1, 12), WeekEnd = new DateOnly(2026, 1, 18), AiTaskCount = 2, TotalTimeSavedMinutes = 20 },
+        };
+        var md = _svc.BuildAiUsageWeeklyReport(new DateOnly(2026, 1, 1), new DateOnly(2026, 1, 31), weeks);
+
+        Assert.Contains("2026-01-05", md);
+        Assert.Contains("2026-01-12", md);
+        var firstIdx  = md.IndexOf("2026-01-05", StringComparison.Ordinal);
+        var secondIdx = md.IndexOf("2026-01-12", StringComparison.Ordinal);
+        Assert.True(firstIdx < secondIdx, "First week row should appear before second week row.");
+    }
+
+    [Fact]
+    public void BuildAiUsageWeeklyReport_EmptyValueAddedAndNotes_RenderAsDash()
+    {
+        var weeks = new List<AiUsageWeeklyItem>
+        {
+            new()
+            {
+                WeekStart             = new DateOnly(2026, 1, 5),
+                WeekEnd               = new DateOnly(2026, 1, 11),
+                AiTaskCount           = 1,
+                TotalTimeSavedMinutes = 5,
+                ValueAdded            = string.Empty,
+                Notes                 = string.Empty
+            }
+        };
+        var md = _svc.BuildAiUsageWeeklyReport(new DateOnly(2026, 1, 1), new DateOnly(2026, 1, 31), weeks);
+
+        // The data row should render "—" for the empty ValueAdded and Notes columns.
+        // We verify by checking that the row contains "| — |" at least once.
+        var lines = md.Split('\n');
+        var dataRow = lines.FirstOrDefault(l =>
+            l.Contains("2026-01-05") && l.StartsWith("|"));
+        Assert.NotNull(dataRow);
+        Assert.Contains("| — |", dataRow);
+    }
+
+    [Fact]
+    public void BuildAiUsageWeeklyReport_PipeInValueAdded_IsEscaped()
+    {
+        var weeks = new List<AiUsageWeeklyItem>
+        {
+            new()
+            {
+                WeekStart             = new DateOnly(2026, 1, 5),
+                WeekEnd               = new DateOnly(2026, 1, 11),
+                AiTaskCount           = 2,
+                TotalTimeSavedMinutes = 30,
+                ValueAdded            = "Used AI for search | refactoring",
+                Notes                 = "PR review | code gen"
+            }
+        };
+        var md = _svc.BuildAiUsageWeeklyReport(new DateOnly(2026, 1, 1), new DateOnly(2026, 1, 31), weeks);
+
+        // Pipe characters in user values must be escaped so the table column count stays correct.
+        Assert.Contains(@"Used AI for search \| refactoring", md);
+        Assert.Contains(@"PR review \| code gen", md);
+        // The raw (unescaped) pipe must NOT appear inside the data row.
+        var lines = md.Split('\n');
+        var dataRow = lines.FirstOrDefault(l => l.Contains("2026-01-05") && l.StartsWith("|"));
+        Assert.NotNull(dataRow);
+        Assert.DoesNotContain("search | refactoring", dataRow);
     }
 }
