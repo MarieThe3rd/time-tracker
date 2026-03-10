@@ -43,95 +43,99 @@
         <button class="nav-link @(_tab == "daily" ? "active" : "")" @onclick='() => _tab = "daily"'>Daily Note</button>
     </li>
     <li class="nav-item">
-        <button class="nav-link @(_tab == "weekly" ? "active" : "")" @onclick='() => _tab = "weekly"'>Weekly Summary</button>
-    </li>
-    <li class="nav-item">
-        <button class="nav-link @(_tab == "review" ? "active" : "")" @onclick='() => _tab = "review"'>Review Export</button>
-    </li>
-</ul>
+        <button class="nav-link @(_tab == "weekly" ? "active" : "")" @onclick='() => _tab = "weekly"'>Weekly
+            Summary</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(_tab == "review" ? "active" : "")" @onclick='() => _tab = "review"'>Review
+                Export</button>
+            </li>
+        </ul>
 
-@if (_tab == "summary")
-{
-    <!-- Category breakdown -->
-    <div class="card shadow-sm">
-        <div class="card-header fw-semibold">Time by Category</div>
-        <div class="card-body">
-            @if (_entries.Count == 0)
-            {
-                <p class="text-muted">No entries in this range.</p>
-            }
-            else
-            {
-                var total = _entries.Where(e => e.Duration.HasValue).Sum(e => e.Duration!.Value.TotalHours);
-                <p class="text-muted small">Total: <strong>@FormatHours(total)</strong></p>
-                @foreach (var g in _entries
-                    .Where(e => e.Duration.HasValue && e.WorkCategory != null)
-                    .GroupBy(e => e.WorkCategory!)
-                    .Select(g => (Cat: g.Key, Hours: g.Sum(e => e.Duration!.Value.TotalHours)))
-                    .OrderByDescending(x => x.Hours))
-                {
-                    var pct = total > 0 ? (int)(g.Hours / total * 100) : 0;
-                    <div class="mb-2">
-                        <div class="d-flex justify-content-between small mb-1">
-                            <span>
-                                <span class="badge me-1" style="background-color:@g.Cat.Color">@g.Cat.Name</span>
-                            </span>
-                            <span>@FormatHours(g.Hours) (@pct%)</span>
-                        </div>
-                        <div class="progress" style="height:8px">
-                            <div class="progress-bar" style="width:@pct%;background-color:@g.Cat.Color"></div>
-                        </div>
-                    </div>
-                }
-            }
-        </div>
-    </div>
-}
-
-@if (_tab is "daily" or "weekly" or "review")
-{
-    var markdown = _tab switch
-    {
-        "daily" => MarkdownService.BuildDailyNote(
-            _from,
-            _entries.Where(e => e.StartTime.ToLocalTime().Date == _from.ToDateTime(TimeOnly.MinValue).Date).ToList(),
-            _journal.Where(j => j.Date == _from).ToList(),
-            _entries.Where(e => e.ProductivityRating.HasValue &&
-                e.StartTime.ToLocalTime().Date == _from.ToDateTime(TimeOnly.MinValue).Date)
-                .Select(e => (double)e.ProductivityRating!.Value)
-                .DefaultIfEmpty(0).Average()),
-        "weekly" => MarkdownService.BuildWeeklySummary(_from, _to, _entries, _journal),
-        "review" => MarkdownService.BuildReviewExport(_from, _to, _journal),
-        _ => string.Empty
-    };
-
-    <div class="card shadow-sm">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <span class="fw-semibold"><i class="bi bi-markdown me-1"></i>Markdown Preview</span>
-            <div class="d-flex gap-2">
-                <button class="btn btn-sm btn-outline-secondary" @onclick="() => CopyToClipboard(markdown)">
-                    <i class="bi bi-clipboard me-1"></i>Copy
-                </button>
-                <button class="btn btn-sm btn-outline-secondary" @onclick="() => DownloadMarkdown(markdown)">
-                    <i class="bi bi-download me-1"></i>Download .md
-                </button>
-                @if (_tab == "daily")
-                {
-                    <button class="btn btn-sm btn-success" @onclick="() => PushToObsidian(markdown)">
-                        <i class="bi bi-journal-arrow-up me-1"></i>Push to Obsidian
-                    </button>
-                }
+        @if (_tab == "summary")
+        {
+            <!-- Category breakdown -->
+            <div class="card shadow-sm">
+                <div class="card-header fw-semibold">Time by Category</div>
+                <div class="card-body">
+                    @if (_entries.Count == 0)
+                    {
+                        <p class="text-muted">No entries in this range.</p>
+                    }
+                    else
+                    {
+                        var total = _entries.Where(e => e.Duration.HasValue).Sum(e => e.Duration!.Value.TotalHours);
+                        <p class="text-muted small">Total: <strong>@FormatHours(total)</strong></p>
+                        @foreach (var g in _entries
+                                            .Where(e => e.Duration.HasValue && e.WorkCategory != null)
+                                            .GroupBy(e => e.WorkCategory!)
+                                            .Select(g => (Cat: g.Key, Hours: g.Sum(e => e.Duration!.Value.TotalHours)))
+                                            .OrderByDescending(x => x.Hours))
+                        {
+                            var pct = total > 0 ? (int)(g.Hours / total * 100) : 0;
+                            <div class="mb-2">
+                                <div class="d-flex justify-content-between small mb-1">
+                                    <span>
+                                        <span class="badge me-1" style="background-color:@g.Cat.Color">@g.Cat.Name</span>
+                                    </span>
+                                    <span>@FormatHours(g.Hours) (@pct%)</span>
+                                </div>
+                                <div class="progress" style="height:8px">
+                                    <div class="progress-bar" style="width:@pct%;background-color:@g.Cat.Color"></div>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
             </div>
-        </div>
-        <div class="card-body">
-            @if (!string.IsNullOrEmpty(_statusMessage))
+        }
+
+        @if (_tab is "daily" or "weekly" or "review")
+        {
+            var markdown = _tab switch
             {
-                <div class="alert @(_statusIsError ? "alert-danger" : "alert-success") py-2 mb-3">@_statusMessage</div>
-            }
-            <pre class="bg-light p-3 rounded small" style="white-space:pre-wrap;max-height:500px;overflow-y:auto">@markdown</pre>
-        </div>
-    </div>
-}
+                "daily" => MarkdownService.BuildDailyNote(
+                    _from,
+                    _entries.Where(e => e.StartTime.ToLocalTime().Date == _from.ToDateTime(TimeOnly.MinValue).Date).ToList(),
+                    _journal.Where(j => j.Date == _from).ToList(),
+                    _entries.Where(e => e.ProductivityRating.HasValue &&
+                        !e.IsBreak &&
+                        e.StartTime.ToLocalTime().Date == _from.ToDateTime(TimeOnly.MinValue).Date)
+                        .Select(e => (double)e.ProductivityRating!.Value)
+                        .DefaultIfEmpty(0).Average()),
+                "weekly" => MarkdownService.BuildWeeklySummary(_from, _to, _entries, _journal),
+                "review" => MarkdownService.BuildReviewExport(_from, _to, _journal),
+                _ => string.Empty
+            };
+
+            <div class="card shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span class="fw-semibold"><i class="bi bi-markdown me-1"></i>Markdown Preview</span>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => CopyToClipboard(markdown)">
+                            <i class="bi bi-clipboard me-1"></i>Copy
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => DownloadMarkdown(markdown)">
+                            <i class="bi bi-download me-1"></i>Download .md
+                        </button>
+                        @if (_tab == "daily")
+                        {
+                            <button class="btn btn-sm btn-success" @onclick="() => PushToObsidian(markdown)">
+                                <i class="bi bi-journal-arrow-up me-1"></i>Push to Obsidian
+                            </button>
+                        }
+                    </div>
+                </div>
+                <div class="card-body">
+                    @if (!string.IsNullOrEmpty(_statusMessage))
+                    {
+                        <div class="alert @(_statusIsError ? "alert-danger" : "alert-success") py-2 mb-3">@_statusMessage</div>
+                    }
+                    <pre class="bg-light p-3 rounded small"
+                         style="white-space:pre-wrap;max-height:500px;overflow-y:auto">@markdown</pre>
+                </div>
+            </div>
+        }
 
 @code {
     private List<TimeEntry> _entries = [];
@@ -156,9 +160,9 @@
         (_from, _to) = _preset switch
         {
             "today" => (today, today),
-            "week"  => (today.AddDays(-(int)today.DayOfWeek + 1), today),
+            "week" => (today.AddDays(-(int)today.DayOfWeek + 1), today),
             "month" => (new DateOnly(today.Year, today.Month, 1), today),
-            _       => (_from, _to)
+            _ => (_from, _to)
         };
         await LoadData();
     }

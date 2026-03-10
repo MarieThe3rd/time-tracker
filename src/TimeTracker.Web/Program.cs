@@ -31,6 +31,7 @@ builder.Services.AddScoped<ManualEntryHandler>();
 builder.Services.AddScoped<GetTodayEntriesHandler>();
 builder.Services.AddScoped<DeleteTimeEntryHandler>();
 builder.Services.AddScoped<UpdateProductivityHandler>();
+builder.Services.AddScoped<UpdateTimeEntryHandler>();
 
 // Dashboard
 builder.Services.AddScoped<DashboardHandler>();

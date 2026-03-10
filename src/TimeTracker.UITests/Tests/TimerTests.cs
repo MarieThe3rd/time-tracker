@@ -155,6 +155,29 @@ public class TimerTests(AppFixture app)
     }
 
     [Fact]
+    public async Task TimerPage_ShowManualEntry_WithoutTodaysEntries_DefaultsStartTo8Am()
+    {
+        var page = await app.NewPageAsync();
+        var timerPage = new TimerPage(page);
+        await timerPage.GotoAsync();
+
+        var hasNoEntriesMessage = await page.Locator("text=No entries yet today.").IsVisibleAsync();
+
+        await timerPage.ShowManualEntryAsync();
+        await timerPage.ManualStartInput.WaitForAsync();
+
+        var startValue = await timerPage.ManualStartInput.InputValueAsync();
+        if (hasNoEntriesMessage)
+        {
+            Assert.EndsWith("T08:00", startValue);
+            return;
+        }
+
+        var minutePortion = startValue[^2..];
+        Assert.True(minutePortion is "00" or "30", $"Expected minute portion to be 00 or 30, got '{minutePortion}'.");
+    }
+
+    [Fact]
     public async Task TimerPage_ShowsTodaysEntriesCard()
     {
         var page = await app.NewPageAsync();
@@ -164,5 +187,70 @@ public class TimerTests(AppFixture app)
         await timerPage.TodaysEntriesCard.WaitForAsync();
 
         Assert.True(await timerPage.TodaysEntriesCard.IsVisibleAsync());
+    }
+
+    [Fact]
+    public async Task TimerPage_SaveManualBreakWithAiDetails_DisplaysBreakAndAiUsage()
+    {
+        var page = await app.NewPageAsync();
+        var timerPage = new TimerPage(page);
+        await timerPage.GotoAsync();
+        await timerPage.ShowManualEntryAsync();
+
+        var today = DateTime.Today;
+        var start = today.AddHours(10).ToString("yyyy-MM-ddTHH:mm");
+        var end = today.AddHours(10).AddMinutes(30).ToString("yyyy-MM-ddTHH:mm");
+
+        await timerPage.SaveManualEntryAsync(
+            start,
+            end,
+            "Break with AI notes",
+            "Recovered focus quickly",
+            isBreak: true,
+            aiUsed: true,
+            aiTimeSavedMinutes: 15,
+            aiNotes: "Used AI summary for quick context switching.");
+
+        Assert.True(await page.Locator("text=Break with AI notes").First.IsVisibleAsync());
+        Assert.True(await page.Locator("text=Break").First.IsVisibleAsync());
+        Assert.True(await page.Locator("text=Yes (15m)").First.IsVisibleAsync());
+    }
+
+    [Fact]
+    public async Task TimerPage_EditEntry_UpdatesDateTimeDescriptionAndCategory()
+    {
+        var page = await app.NewPageAsync();
+        var timerPage = new TimerPage(page);
+        await timerPage.GotoAsync();
+        await timerPage.ShowManualEntryAsync();
+
+        var today = DateTime.Today;
+        var start = today.AddHours(11).ToString("yyyy-MM-ddTHH:mm");
+        var end = today.AddHours(12).ToString("yyyy-MM-ddTHH:mm");
+
+        await timerPage.SaveManualEntryAsync(
+            start,
+            end,
+            "Entry before edit",
+            "Initial value",
+            isBreak: false,
+            aiUsed: false,
+            aiTimeSavedMinutes: null,
+            aiNotes: null);
+
+        await timerPage.StartEditEntryByDescriptionAsync("Entry before edit");
+
+        var editedStart = today.AddHours(12).ToString("yyyy-MM-ddTHH:mm");
+        await timerPage.EditStartInput.FillAsync(editedStart);
+        await timerPage.EditDescriptionInput.FillAsync("Entry after edit");
+        await timerPage.EditCategorySelect.SelectOptionAsync(new[] { "2" });
+        await timerPage.SaveChangesButton.ClickAsync();
+        await timerPage.WaitForBlazorAsync();
+
+        Assert.True(await page.Locator("text=Entry after edit").First.IsVisibleAsync());
+
+        await timerPage.StartEditEntryByDescriptionAsync("Entry after edit");
+        Assert.Equal("Entry after edit", await timerPage.EditDescriptionInput.InputValueAsync());
+        Assert.Equal("2", await timerPage.EditCategorySelect.InputValueAsync());
     }
 }
