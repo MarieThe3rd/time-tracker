@@ -15,7 +15,7 @@ else
 {
     <!-- Summary cards -->
     <div class="row g-3 mb-4">
-        <div class="col-sm-4">
+        <div class="col-md-6 col-xl-3">
             <div class="card shadow-sm text-center">
                 <div class="card-body">
                     <div class="text-muted small mb-1">Time Today</div>
@@ -23,7 +23,7 @@ else
                 </div>
             </div>
         </div>
-        <div class="col-sm-4">
+        <div class="col-md-6 col-xl-3">
             <div class="card shadow-sm text-center">
                 <div class="card-body">
                     <div class="text-muted small mb-1">Avg Productivity</div>
@@ -40,11 +40,25 @@ else
                 </div>
             </div>
         </div>
-        <div class="col-sm-4">
+        <div class="col-md-6 col-xl-3">
             <div class="card shadow-sm text-center">
                 <div class="card-body">
                     <div class="text-muted small mb-1">Entries Today</div>
                     <div class="fs-3 fw-bold">@_data.RecentEntries.Count</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-3">
+            <div class="card shadow-sm text-center h-100">
+                <div class="card-body">
+                    <div class="text-muted small mb-1">AI Time Saved This Week</div>
+                    <div class="fs-3 fw-bold">@FormatMinutes(_data.AiSummary.WeekTimeSavedMinutes)</div>
+                    <div class="small text-muted mt-2">
+                        Today: @FormatMinutes(_data.AiSummary.TodayTimeSavedMinutes)
+                    </div>
+                    <div class="small text-muted">
+                        Assisted entries: @_data.AiSummary.WeekAssistedEntries this week
+                    </div>
                 </div>
             </div>
         </div>
@@ -90,6 +104,10 @@ else
                                         <span class="badge" style="background-color:@e.WorkCategory.Color">@e.WorkCategory.Name</span>
                                     }
                                     <span class="flex-grow-1 small text-truncate">@(e.Description ?? "—")</span>
+                                    @if (e.AiUsed)
+                                    {
+                                        <span class="badge text-bg-info">AI @FormatMinutes(e.AiTimeSavedMinutes ?? 0)</span>
+                                    }
                                     <span class="text-muted small text-nowrap">@FormatSpan(e.Duration)</span>
                                     @if (e.ProductivityRating.HasValue)
                                     {
@@ -162,6 +180,12 @@ else
     {
         if (ts is null) return "—";
         return $"{(int)ts.Value.TotalHours}h {ts.Value.Minutes}m";
+    }
+
+    private static string FormatMinutes(int minutes)
+    {
+        var span = TimeSpan.FromMinutes(minutes);
+        return $"{(int)span.TotalHours}h {span.Minutes}m";
     }
 }
 

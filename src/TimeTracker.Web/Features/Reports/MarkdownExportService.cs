@@ -14,6 +14,11 @@ public class MarkdownExportService
         var totalHours = entries
             .Where(e => e.Duration.HasValue)
             .Sum(e => e.Duration!.Value.TotalHours);
+        var aiEntries = entries
+            .Where(e => e.AiUsed)
+            .OrderBy(e => e.StartTime)
+            .ToList();
+        var totalAiTimeSavedMinutes = aiEntries.Sum(e => e.AiTimeSavedMinutes ?? 0);
 
         var sb = new System.Text.StringBuilder();
 
@@ -22,6 +27,8 @@ public class MarkdownExportService
         sb.AppendLine($"date: {date:yyyy-MM-dd}");
         sb.AppendLine($"total_hours: {totalHours:F2}");
         sb.AppendLine($"productivity_score: {(avgProductivity > 0 ? avgProductivity.ToString("F1") : "n/a")}");
+        sb.AppendLine($"ai_usage_count: {aiEntries.Count}");
+        sb.AppendLine($"ai_time_saved_minutes: {totalAiTimeSavedMinutes}");
         sb.AppendLine("tags: [time-tracker]");
         sb.AppendLine("---");
         sb.AppendLine();
@@ -34,6 +41,11 @@ public class MarkdownExportService
         sb.AppendLine($"**Total time:** {FormatHours(totalHours)}  ");
         if (avgProductivity > 0)
             sb.AppendLine($"**Avg productivity:** {avgProductivity:F1}/5  ");
+        if (aiEntries.Count > 0)
+        {
+            sb.AppendLine($"**AI-assisted entries:** {aiEntries.Count}  ");
+            sb.AppendLine($"**AI time saved:** {FormatMinutes(totalAiTimeSavedMinutes)}  ");
+        }
         sb.AppendLine();
 
         // Time entries table
@@ -55,6 +67,24 @@ public class MarkdownExportService
             sb.AppendLine();
         }
 
+        if (aiEntries.Count > 0)
+        {
+            sb.AppendLine("### AI Usage");
+            sb.AppendLine();
+            sb.AppendLine("| Time | Description | Time Saved | Value Added | Notes |");
+            sb.AppendLine("|------|-------------|------------|-------------|-------|");
+            foreach (var entry in aiEntries)
+            {
+                var time = entry.StartTime.ToLocalTime().ToString("HH:mm");
+                var description = EscapePipe(entry.Description ?? "—");
+                var timeSaved = FormatMinutes(entry.AiTimeSavedMinutes ?? 0);
+                var valueAdded = EscapePipe(string.IsNullOrWhiteSpace(entry.ValueAdded) ? "—" : entry.ValueAdded);
+                var notes = EscapePipe(string.IsNullOrWhiteSpace(entry.AiNotes) ? "—" : entry.AiNotes);
+                sb.AppendLine($"| {time} | {description} | {timeSaved} | {valueAdded} | {notes} |");
+            }
+            sb.AppendLine();
+        }
+
         // Journal entries
         if (journalEntries.Count > 0)
         {
@@ -65,8 +95,8 @@ public class MarkdownExportService
                 var icon = j.Type switch
                 {
                     JournalEntryType.Challenge => "⚡",
-                    JournalEntryType.Learning  => "🎓",
-                    JournalEntryType.Success   => "🏆",
+                    JournalEntryType.Learning => "🎓",
+                    JournalEntryType.Success => "🏆",
                     _ => "•"
                 };
                 sb.AppendLine($"#### {icon} {j.Type}: {j.Title}");
@@ -88,6 +118,11 @@ public class MarkdownExportService
         var totalHours = entries
             .Where(e => e.Duration.HasValue)
             .Sum(e => e.Duration!.Value.TotalHours);
+        var aiEntries = entries
+            .Where(e => e.AiUsed)
+            .OrderBy(e => e.StartTime)
+            .ToList();
+        var totalAiTimeSavedMinutes = aiEntries.Sum(e => e.AiTimeSavedMinutes ?? 0);
 
         var sb = new System.Text.StringBuilder();
 
@@ -101,6 +136,11 @@ public class MarkdownExportService
         sb.AppendLine($"## 📊 Weekly Summary: {from:MMM d} – {to:MMM d, yyyy}");
         sb.AppendLine();
         sb.AppendLine($"**Total time logged:** {FormatHours(totalHours)}");
+        if (aiEntries.Count > 0)
+        {
+            sb.AppendLine($"**AI-assisted entries:** {aiEntries.Count}");
+            sb.AppendLine($"**AI time saved:** {FormatMinutes(totalAiTimeSavedMinutes)}");
+        }
         sb.AppendLine();
 
         // Category breakdown
@@ -121,6 +161,8 @@ public class MarkdownExportService
                 sb.AppendLine($"| {name} | {FormatHours(hours)} |");
             sb.AppendLine();
         }
+
+        AppendAiUsageSummary(sb, aiEntries);
 
         // Wins
         var wins = journalEntries.Where(j => j.Type == JournalEntryType.Success).ToList();
@@ -173,8 +215,14 @@ public class MarkdownExportService
     public string BuildReviewExport(
         DateOnly from,
         DateOnly to,
-        List<JournalEntry> journalEntries)
+        List<JournalEntry> journalEntries,
+        List<TimeEntry> entries)
     {
+        var aiEntries = entries
+            .Where(e => e.AiUsed)
+            .OrderBy(e => e.StartTime)
+            .ToList();
+
         var sb = new System.Text.StringBuilder();
 
         sb.AppendLine("---");
@@ -205,6 +253,7 @@ public class MarkdownExportService
         WriteSection("Successes & Wins", JournalEntryType.Success, "🏆");
         WriteSection("Challenges", JournalEntryType.Challenge, "⚡");
         WriteSection("Learnings", JournalEntryType.Learning, "🎓");
+        AppendAiUsageSummary(sb, aiEntries);
 
         return sb.ToString();
     }
@@ -250,6 +299,56 @@ public class MarkdownExportService
     /// Escapes pipe characters in user-supplied strings so they do not break markdown table columns.
     /// </summary>
     private static string EscapePipe(string s) => s.Replace("|", "\\|");
+
+    private static void AppendAiUsageSummary(System.Text.StringBuilder sb, List<TimeEntry> aiEntries)
+    {
+        if (aiEntries.Count == 0)
+        {
+            return;
+        }
+
+        var totalAiTimeSavedMinutes = aiEntries.Sum(e => e.AiTimeSavedMinutes ?? 0);
+        var weeklyBreakdown = aiEntries
+            .GroupBy(e => GetWeekStart(DateOnly.FromDateTime(e.StartTime.ToLocalTime())))
+            .OrderBy(g => g.Key)
+            .Select(g => new AiUsageWeeklyItem
+            {
+                WeekStart = g.Key,
+                WeekEnd = g.Key.AddDays(6),
+                AiTaskCount = g.Count(),
+                TotalTimeSavedMinutes = g.Sum(e => e.AiTimeSavedMinutes ?? 0),
+                ValueAdded = string.Join("; ", g.Where(e => !string.IsNullOrWhiteSpace(e.ValueAdded)).Select(e => e.ValueAdded!)),
+                Notes = string.Join("; ", g.Where(e => !string.IsNullOrWhiteSpace(e.AiNotes)).Select(e => e.AiNotes!))
+            })
+            .ToList();
+
+        sb.AppendLine("### AI Usage Summary");
+        sb.AppendLine();
+        sb.AppendLine($"**AI-assisted entries:** {aiEntries.Count}");
+        sb.AppendLine($"**AI time saved:** {FormatMinutes(totalAiTimeSavedMinutes)}");
+        sb.AppendLine();
+        sb.AppendLine("| Week | AI Entries | Time Saved | Value Added | Notes |");
+        sb.AppendLine("|------|------------|------------|-------------|-------|");
+        foreach (var week in weeklyBreakdown)
+        {
+            var valueAdded = EscapePipe(string.IsNullOrWhiteSpace(week.ValueAdded) ? "—" : week.ValueAdded);
+            var notes = EscapePipe(string.IsNullOrWhiteSpace(week.Notes) ? "—" : week.Notes);
+            sb.AppendLine($"| {week.WeekStart:yyyy-MM-dd} | {week.AiTaskCount} | {FormatMinutes(week.TotalTimeSavedMinutes)} | {valueAdded} | {notes} |");
+        }
+        sb.AppendLine();
+    }
+
+    private static DateOnly GetWeekStart(DateOnly date)
+    {
+        var diff = ((int)date.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
+        return date.AddDays(-diff);
+    }
+
+    private static string FormatMinutes(int minutes)
+    {
+        var span = TimeSpan.FromMinutes(minutes);
+        return $"{(int)span.TotalHours}h {span.Minutes}m";
+    }
 
     private static string FormatHours(double hours)
     {

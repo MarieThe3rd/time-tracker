@@ -7,7 +7,6 @@ using TimeTracker.Web.Features.Journal.ListEntries;
 using TimeTracker.Web.Features.Journal;
 using TimeTracker.Web.Features.Dashboard;
 using TimeTracker.Web.Features.Reports;
-using TimeTracker.Web.Features.Reports.AiUsage;
 using TimeTracker.Web.Features.Reports.DailyNote;
 using TimeTracker.Web.Features.Settings;
 
@@ -39,7 +38,6 @@ builder.Services.AddScoped<DashboardHandler>();
 
 // Reports
 builder.Services.AddScoped<ReportsHandler>();
-builder.Services.AddScoped<AiUsageReportHandler>();
 builder.Services.AddScoped<MarkdownExportService>();
 
 // Settings

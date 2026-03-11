@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TimeTracker.Web.Data;
 using TimeTracker.Web.Data.Models;
+using TimeTracker.Web.Features.Reports.AiUsage;
 using TimeTracker.Web.Features.Reports.DailyNote;
 
 namespace TimeTracker.Tests.Features.Reports;
@@ -20,18 +21,18 @@ public class ReportsHandlerTests
     {
         using var db = CreateDb();
         var from = new DateOnly(2026, 3, 1);
-        var to   = new DateOnly(2026, 3, 7);
+        var to = new DateOnly(2026, 3, 7);
 
         db.TimeEntries.AddRange(
             new TimeEntry
             {
                 StartTime = new DateTime(2026, 3, 3, 9, 0, 0, DateTimeKind.Utc),
-                EndTime   = new DateTime(2026, 3, 3, 10, 0, 0, DateTimeKind.Utc)
+                EndTime = new DateTime(2026, 3, 3, 10, 0, 0, DateTimeKind.Utc)
             },
             new TimeEntry
             {
                 StartTime = new DateTime(2026, 3, 10, 9, 0, 0, DateTimeKind.Utc),
-                EndTime   = new DateTime(2026, 3, 10, 10, 0, 0, DateTimeKind.Utc)
+                EndTime = new DateTime(2026, 3, 10, 10, 0, 0, DateTimeKind.Utc)
             }
         );
         await db.SaveChangesAsync();
@@ -84,7 +85,7 @@ public class ReportsHandlerTests
         using var db = CreateDb();
         db.TimeEntries.AddRange(
             new TimeEntry { StartTime = new DateTime(2026, 3, 5, 14, 0, 0, DateTimeKind.Utc), EndTime = new DateTime(2026, 3, 5, 15, 0, 0, DateTimeKind.Utc) },
-            new TimeEntry { StartTime = new DateTime(2026, 3, 3,  9, 0, 0, DateTimeKind.Utc), EndTime = new DateTime(2026, 3, 3, 10, 0, 0, DateTimeKind.Utc) }
+            new TimeEntry { StartTime = new DateTime(2026, 3, 3, 9, 0, 0, DateTimeKind.Utc), EndTime = new DateTime(2026, 3, 3, 10, 0, 0, DateTimeKind.Utc) }
         );
         await db.SaveChangesAsync();
 
@@ -121,5 +122,71 @@ public class ReportsHandlerTests
 
         Assert.Empty(entries);
         Assert.Empty(journal);
+    }
+
+    [Fact]
+    public async Task GetWeeklyAiUsageAsync_GroupsAiEntriesByMondayWeekStart()
+    {
+        using var db = CreateDb();
+        db.TimeEntries.AddRange(
+            new TimeEntry
+            {
+                StartTime = new DateTime(2026, 3, 3, 9, 0, 0, DateTimeKind.Utc),
+                EndTime = new DateTime(2026, 3, 3, 10, 0, 0, DateTimeKind.Utc),
+                AiUsed = true,
+                AiTimeSavedMinutes = 15,
+                AiNotes = "Generated tests",
+                ValueAdded = "Faster coverage"
+            },
+            new TimeEntry
+            {
+                StartTime = new DateTime(2026, 3, 6, 14, 0, 0, DateTimeKind.Utc),
+                EndTime = new DateTime(2026, 3, 6, 15, 0, 0, DateTimeKind.Utc),
+                AiUsed = true,
+                AiTimeSavedMinutes = 25,
+                AiNotes = "Refactoring help",
+                ValueAdded = "Cleaner code"
+            });
+        await db.SaveChangesAsync();
+
+        var handler = new ReportsHandler(db);
+
+        var weeks = await handler.GetWeeklyAiUsageAsync(new ReportRange(new DateOnly(2026, 3, 1), new DateOnly(2026, 3, 7)));
+
+        var week = Assert.Single(weeks);
+        Assert.Equal(new DateOnly(2026, 3, 2), week.WeekStart);
+        Assert.Equal(new DateOnly(2026, 3, 8), week.WeekEnd);
+        Assert.Equal(2, week.AiTaskCount);
+        Assert.Equal(40, week.TotalTimeSavedMinutes);
+        Assert.Contains("Faster coverage", week.ValueAdded);
+        Assert.Contains("Refactoring help", week.Notes);
+    }
+
+    [Fact]
+    public async Task GetWeeklyAiUsageAsync_IgnoresNonAiAndRunningEntries()
+    {
+        using var db = CreateDb();
+        db.TimeEntries.AddRange(
+            new TimeEntry
+            {
+                StartTime = new DateTime(2026, 3, 3, 9, 0, 0, DateTimeKind.Utc),
+                EndTime = new DateTime(2026, 3, 3, 10, 0, 0, DateTimeKind.Utc),
+                AiUsed = false,
+                AiTimeSavedMinutes = 15
+            },
+            new TimeEntry
+            {
+                StartTime = new DateTime(2026, 3, 4, 9, 0, 0, DateTimeKind.Utc),
+                EndTime = null,
+                AiUsed = true,
+                AiTimeSavedMinutes = 20
+            });
+        await db.SaveChangesAsync();
+
+        var handler = new ReportsHandler(db);
+
+        var weeks = await handler.GetWeeklyAiUsageAsync(new ReportRange(new DateOnly(2026, 3, 1), new DateOnly(2026, 3, 7)));
+
+        Assert.Empty(weeks);
     }
 }

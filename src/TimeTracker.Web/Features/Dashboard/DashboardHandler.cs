@@ -6,12 +6,19 @@ namespace TimeTracker.Web.Features.Dashboard;
 
 public record CategoryStat(string Name, string Color, double TotalHours);
 
+public record AiDashboardSummary(
+    int TodayAssistedEntries,
+    int TodayTimeSavedMinutes,
+    int WeekAssistedEntries,
+    int WeekTimeSavedMinutes);
+
 public record DashboardData(
     TimeSpan TotalToday,
     double AvgProductivity,
     List<CategoryStat> CategoryStats,
     List<TimeEntry> RecentEntries,
-    List<JournalEntry> RecentJournal);
+    List<JournalEntry> RecentJournal,
+    AiDashboardSummary AiSummary);
 
 public class DashboardHandler(AppDbContext db)
 {
@@ -19,10 +26,17 @@ public class DashboardHandler(AppDbContext db)
     {
         var todayStart = DateTime.Today.ToUniversalTime();
         var todayEnd = todayStart.AddDays(1);
+        var weekStart = GetWeekStart(DateOnly.FromDateTime(DateTime.Today))
+            .ToDateTime(TimeOnly.MinValue)
+            .ToUniversalTime();
 
         var todayEntries = await db.TimeEntries
             .Include(e => e.WorkCategory)
             .Where(e => e.StartTime >= todayStart && e.StartTime < todayEnd && e.EndTime != null)
+            .ToListAsync();
+
+        var weekAiEntries = await db.TimeEntries
+            .Where(e => e.AiUsed && e.StartTime >= weekStart && e.StartTime < todayEnd && e.EndTime != null)
             .ToListAsync();
 
         var total = todayEntries.Aggregate(TimeSpan.Zero,
@@ -52,6 +66,19 @@ public class DashboardHandler(AppDbContext db)
             .Take(3)
             .ToListAsync();
 
-        return new DashboardData(total, avgProd, stats, recent, journal);
+        var todayAiEntries = todayEntries.Where(e => e.AiUsed).ToList();
+        var aiSummary = new AiDashboardSummary(
+            todayAiEntries.Count,
+            todayAiEntries.Sum(e => e.AiTimeSavedMinutes ?? 0),
+            weekAiEntries.Count,
+            weekAiEntries.Sum(e => e.AiTimeSavedMinutes ?? 0));
+
+        return new DashboardData(total, avgProd, stats, recent, journal, aiSummary);
+    }
+
+    private static DateOnly GetWeekStart(DateOnly date)
+    {
+        var diff = ((int)date.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
+        return date.AddDays(-diff);
     }
 }

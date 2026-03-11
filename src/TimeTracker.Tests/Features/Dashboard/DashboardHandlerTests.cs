@@ -191,4 +191,45 @@ public class DashboardHandlerTests
         // Only the rated entry counts — avg should be 4, not 2
         Assert.Equal(4.0, data.AvgProductivity);
     }
+
+    [Fact]
+    public async Task HandleAsync_AiEntries_ReturnsTodayAndWeekAiSummary()
+    {
+        using var db = CreateDb();
+        var today = DateTime.Today.ToUniversalTime();
+        var monday = today.AddDays(-(((int)DateTime.Today.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7));
+        var mondayIsToday = monday.Date == today.Date;
+
+        db.TimeEntries.AddRange(
+            new TimeEntry
+            {
+                StartTime = today.AddHours(1),
+                EndTime = today.AddHours(2),
+                AiUsed = true,
+                AiTimeSavedMinutes = 20
+            },
+            new TimeEntry
+            {
+                StartTime = monday.AddHours(9),
+                EndTime = monday.AddHours(10),
+                AiUsed = true,
+                AiTimeSavedMinutes = 40
+            },
+            new TimeEntry
+            {
+                StartTime = today.AddDays(-10),
+                EndTime = today.AddDays(-10).AddHours(1),
+                AiUsed = true,
+                AiTimeSavedMinutes = 60
+            });
+
+        await db.SaveChangesAsync();
+
+        var data = await new DashboardHandler(db).HandleAsync();
+
+        Assert.Equal(mondayIsToday ? 2 : 1, data.AiSummary.TodayAssistedEntries);
+        Assert.Equal(mondayIsToday ? 60 : 20, data.AiSummary.TodayTimeSavedMinutes);
+        Assert.Equal(2, data.AiSummary.WeekAssistedEntries);
+        Assert.Equal(60, data.AiSummary.WeekTimeSavedMinutes);
+    }
 }

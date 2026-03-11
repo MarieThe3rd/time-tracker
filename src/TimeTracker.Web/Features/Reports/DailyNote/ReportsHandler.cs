@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TimeTracker.Web.Data;
 using TimeTracker.Web.Data.Models;
+using TimeTracker.Web.Features.Reports.AiUsage;
 
 namespace TimeTracker.Web.Features.Reports.DailyNote;
 
@@ -25,6 +26,45 @@ public class ReportsHandler(AppDbContext db)
             .ToListAsync();
 
         return (entries, journal);
+    }
+
+    public async Task<List<AiUsageWeeklyItem>> GetWeeklyAiUsageAsync(ReportRange range)
+    {
+        var from = range.From.ToDateTime(TimeOnly.MinValue).ToUniversalTime();
+        var to = range.To.ToDateTime(TimeOnly.MaxValue).ToUniversalTime();
+
+        var items = await db.TimeEntries
+            .Where(e => e.AiUsed && e.StartTime >= from && e.StartTime <= to && e.EndTime != null)
+            .Select(e => new AiUsageReportItem
+            {
+                Id = e.Id,
+                StartTime = e.StartTime,
+                EndTime = e.EndTime,
+                Description = e.Description,
+                AiTimeSavedMinutes = e.AiTimeSavedMinutes,
+                AiNotes = e.AiNotes,
+                ValueAdded = e.ValueAdded
+            })
+            .OrderBy(e => e.StartTime)
+            .ToListAsync();
+
+        return items
+            .GroupBy(e => GetWeekStart(e.StartTime))
+            .OrderBy(g => g.Key)
+            .Select(g => new AiUsageWeeklyItem
+            {
+                WeekStart = g.Key,
+                WeekEnd = g.Key.AddDays(6),
+                AiTaskCount = g.Count(),
+                TotalTimeSavedMinutes = g.Sum(e => e.AiTimeSavedMinutes ?? 0),
+                ValueAdded = string.Join("; ", g
+                    .Where(e => !string.IsNullOrWhiteSpace(e.ValueAdded))
+                    .Select(e => e.ValueAdded!)),
+                Notes = string.Join("; ", g
+                    .Where(e => !string.IsNullOrWhiteSpace(e.AiNotes))
+                    .Select(e => e.AiNotes!))
+            })
+            .ToList();
     }
 
     public async Task<(string Path, bool Appended)> PushDailyNoteAsync(
@@ -78,6 +118,13 @@ public class ReportsHandler(AppDbContext db)
     {
         var idx = markdown.IndexOf(heading, StringComparison.Ordinal);
         return idx >= 0 ? markdown[idx..] : markdown;
+    }
+
+    private static DateOnly GetWeekStart(DateTime dateTime)
+    {
+        var date = DateOnly.FromDateTime(dateTime);
+        var diff = ((int)date.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
+        return date.AddDays(-diff);
     }
 
     /// <summary>

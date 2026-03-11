@@ -1,5 +1,6 @@
 @page "/reports"
 @rendermode InteractiveServer
+@using TimeTracker.Web.Features.Reports.AiUsage
 @inject ReportsHandler Handler
 @inject MarkdownExportService MarkdownService
 @inject AppDbContext Db
@@ -14,8 +15,8 @@
     <div class="card-body">
         <div class="row g-2 align-items-end">
             <div class="col-auto">
-                <label class="form-label">Preset</label>
-                <select class="form-select" @bind="_preset" @bind:after="ApplyPreset">
+                <label class="form-label" for="reportPreset">Preset</label>
+                <select id="reportPreset" class="form-select" @bind="_preset" @bind:after="ApplyPreset">
                     <option value="today">Today</option>
                     <option value="week">This week</option>
                     <option value="month">This month</option>
@@ -23,135 +24,318 @@
                 </select>
             </div>
             <div class="col-auto">
-                <label class="form-label">From</label>
-                <input type="date" class="form-control" @bind="_from" @bind:after="LoadData" />
+                <label class="form-label" for="reportFrom">From</label>
+                <input id="reportFrom" type="date" class="form-control" @bind="_from" @bind:after="LoadData" />
             </div>
             <div class="col-auto">
-                <label class="form-label">To</label>
-                <input type="date" class="form-control" @bind="_to" @bind:after="LoadData" />
+                <label class="form-label" for="reportTo">To</label>
+                <input id="reportTo" type="date" class="form-control" @bind="_to" @bind:after="LoadData" />
             </div>
         </div>
     </div>
 </div>
 
-<!-- Tab selector -->
-<ul class="nav nav-tabs mb-3">
-    <li class="nav-item">
-        <button class="nav-link @(_tab == "summary" ? "active" : "")" @onclick='() => _tab = "summary"'>Summary</button>
-    </li>
-    <li class="nav-item">
-        <button class="nav-link @(_tab == "daily" ? "active" : "")" @onclick='() => _tab = "daily"'>Daily Note</button>
-    </li>
-    <li class="nav-item">
-        <button class="nav-link @(_tab == "weekly" ? "active" : "")" @onclick='() => _tab = "weekly"'>Weekly
-            Summary</button>
+<div class="row g-3 mb-4">
+    <div class="col-md-6 col-xl-3">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small mb-1">Logged Time</div>
+                <div class="fs-4 fw-bold">@FormatHours(_entries.Where(e => e.Duration.HasValue).Sum(e =>
+                                        e.Duration!.Value.TotalHours))</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small mb-1">AI-Assisted Entries</div>
+                    <div class="fs-4 fw-bold">@AiEntries.Count</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small mb-1">AI Time Saved</div>
+                    <div class="fs-4 fw-bold">@FormatMinutes(TotalAiTimeSavedMinutes)</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small mb-1">Journal Entries</div>
+                    <div class="fs-4 fw-bold">@_journal.Count</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab selector -->
+    <ul class="nav nav-tabs mb-3">
+        <li class="nav-item">
+            <button class="nav-link @(_tab == "summary" ? "active" : "")"
+                    @onclick='() => SelectTab("summary")'>Summary</button>
         </li>
         <li class="nav-item">
-            <button class="nav-link @(_tab == "review" ? "active" : "")" @onclick='() => _tab = "review"'>Review
-                Export</button>
+            <button class="nav-link @(_tab == "ai" ? "active" : "")" @onclick='() => SelectTab("ai")'>AI Insights</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(_tab == "daily" ? "active" : "")" @onclick='() => SelectTab("daily")'>Daily
+                Note</button>
             </li>
-        </ul>
+            <li class="nav-item">
+                <button class="nav-link @(_tab == "weekly" ? "active" : "")" @onclick='() => SelectTab("weekly")'>Weekly
+                    Summary</button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link @(_tab == "review" ? "active" : "")" @onclick='() => SelectTab("review")'>Review
+                        Export</button>
+                    </li>
+                </ul>
 
-        @if (_tab == "summary")
-        {
-            <!-- Category breakdown -->
-            <div class="card shadow-sm">
-                <div class="card-header fw-semibold">Time by Category</div>
-                <div class="card-body">
-                    @if (_entries.Count == 0)
+                @if (_tab == "summary")
+                {
+                    <!-- Category breakdown -->
+                    <div class="card shadow-sm">
+                        <div class="card-header fw-semibold">Time by Category</div>
+                        <div class="card-body">
+                            @if (_entries.Count == 0)
+                            {
+                                <p class="text-muted">No entries in this range.</p>
+                            }
+                            else
+                            {
+                                var total = _entries.Where(e => e.Duration.HasValue).Sum(e => e.Duration!.Value.TotalHours);
+                                <p class="text-muted small">Total: <strong>@FormatHours(total)</strong></p>
+                                @foreach (var g in _entries
+                                                                            .Where(e => e.Duration.HasValue && e.WorkCategory != null)
+                                                                            .GroupBy(e => e.WorkCategory!)
+                                                                            .Select(g => (Cat: g.Key, Hours: g.Sum(e => e.Duration!.Value.TotalHours)))
+                                                                            .OrderByDescending(x => x.Hours))
+                                {
+                                    var pct = total > 0 ? (int)(g.Hours / total * 100) : 0;
+                                    <div class="mb-2">
+                                        <div class="d-flex justify-content-between small mb-1">
+                                            <span>
+                                                <span class="badge me-1" style="background-color:@g.Cat.Color">@g.Cat.Name</span>
+                                            </span>
+                                            <span>@FormatHours(g.Hours) (@pct%)</span>
+                                        </div>
+                                        <div class="progress" style="height:8px">
+                                            <div class="progress-bar" style="width:@pct%;background-color:@g.Cat.Color"></div>
+                                        </div>
+                                    </div>
+                                }
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (_tab == "ai")
+                {
+                    @if (AiEntries.Count == 0)
                     {
-                        <p class="text-muted">No entries in this range.</p>
+                        <div class="card shadow-sm">
+                            <div class="card-body">
+                                <p class="text-muted mb-0">No AI-assisted entries in this range.</p>
+                            </div>
+                        </div>
                     }
                     else
                     {
-                        var total = _entries.Where(e => e.Duration.HasValue).Sum(e => e.Duration!.Value.TotalHours);
-                        <p class="text-muted small">Total: <strong>@FormatHours(total)</strong></p>
-                        @foreach (var g in _entries
-                                            .Where(e => e.Duration.HasValue && e.WorkCategory != null)
-                                            .GroupBy(e => e.WorkCategory!)
-                                            .Select(g => (Cat: g.Key, Hours: g.Sum(e => e.Duration!.Value.TotalHours)))
-                                            .OrderByDescending(x => x.Hours))
-                        {
-                            var pct = total > 0 ? (int)(g.Hours / total * 100) : 0;
-                            <div class="mb-2">
-                                <div class="d-flex justify-content-between small mb-1">
-                                    <span>
-                                        <span class="badge me-1" style="background-color:@g.Cat.Color">@g.Cat.Name</span>
-                                    </span>
-                                    <span>@FormatHours(g.Hours) (@pct%)</span>
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-4">
+                                <div class="card shadow-sm h-100">
+                                    <div class="card-body text-center">
+                                        <div class="text-muted small mb-1">AI-Assisted Work</div>
+                                        <div class="fs-3 fw-bold">@AiEntries.Count</div>
+                                    </div>
                                 </div>
-                                <div class="progress" style="height:8px">
-                                    <div class="progress-bar" style="width:@pct%;background-color:@g.Cat.Color"></div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card shadow-sm h-100">
+                                    <div class="card-body text-center">
+                                        <div class="text-muted small mb-1">Time Saved</div>
+                                        <div class="fs-3 fw-bold">@FormatMinutes(TotalAiTimeSavedMinutes)</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card shadow-sm h-100">
+                                    <div class="card-body text-center">
+                                        <div class="text-muted small mb-1">Avg Saved Per Entry</div>
+                                        <div class="fs-3 fw-bold">@FormatMinutes(AverageAiTimeSavedMinutes)</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card shadow-sm mb-4">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <span class="fw-semibold">AI Usage Over Time</span>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-outline-secondary" @onclick="DownloadAiReport">
+                                        <i class="bi bi-download me-1"></i>Download AI Report
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-secondary" @onclick="ExportAiReport">
+                                        <i class="bi bi-cloud-upload me-1"></i>Export AI Report
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                @if (!string.IsNullOrEmpty(_statusMessage))
+                                {
+                                    <div class="alert @(_statusIsError ? "alert-danger" : "alert-success") py-2 mb-3">@_statusMessage</div>
+                                }
+                                <div style="height:320px">
+                                    <canvas id="aiUsageChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card shadow-sm mb-4">
+                            <div class="card-header fw-semibold">Weekly AI Summary</div>
+                            <div class="card-body p-0">
+                                <table class="table table-sm table-hover mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Week Start</th>
+                                            <th>Week End</th>
+                                            <th>AI Tasks</th>
+                                            <th>Time Saved</th>
+                                            <th>Value Added</th>
+                                            <th>Notes</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var week in _aiWeeks)
+                                        {
+                                            <tr>
+                                                <td>@week.WeekStart.ToString("yyyy-MM-dd")</td>
+                                                <td>@week.WeekEnd.ToString("yyyy-MM-dd")</td>
+                                                <td>@week.AiTaskCount</td>
+                                                <td>@FormatMinutes(week.TotalTimeSavedMinutes)</td>
+                                                <td>@(string.IsNullOrWhiteSpace(week.ValueAdded) ? "—" : week.ValueAdded)</td>
+                                                <td>@(string.IsNullOrWhiteSpace(week.Notes) ? "—" : week.Notes)</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        @if (_aiWeeks.Any(w => !string.IsNullOrWhiteSpace(w.ValueAdded) || !string.IsNullOrWhiteSpace(w.Notes)))
+                        {
+                            <div class="card shadow-sm">
+                                <div class="card-header fw-semibold">Qualitative Insights</div>
+                                <div class="card-body">
+                                    @foreach (var week in _aiWeeks.Where(w => !string.IsNullOrWhiteSpace(w.ValueAdded) ||
+                                            !string.IsNullOrWhiteSpace(w.Notes)))
+                                    {
+                                        <div class="mb-3">
+                                            <strong>@week.WeekStart.ToString("yyyy-MM-dd") – @week.WeekEnd.ToString("yyyy-MM-dd")</strong>
+                                            @if (!string.IsNullOrWhiteSpace(week.ValueAdded))
+                                            {
+                                                <div class="text-muted small"><span class="fw-semibold">Value Added:</span> @week.ValueAdded</div>
+                                            }
+                                            @if (!string.IsNullOrWhiteSpace(week.Notes))
+                                            {
+                                                <div class="text-muted small"><span class="fw-semibold">Notes:</span> @week.Notes</div>
+                                            }
+                                        </div>
+                                    }
                                 </div>
                             </div>
                         }
                     }
-                </div>
-            </div>
-        }
+                }
 
-        @if (_tab is "daily" or "weekly" or "review")
-        {
-            var markdown = _tab switch
-            {
-                "daily" => MarkdownService.BuildDailyNote(
-                    _from,
-                    _entries.Where(e => e.StartTime.ToLocalTime().Date == _from.ToDateTime(TimeOnly.MinValue).Date).ToList(),
-                    _journal.Where(j => j.Date == _from).ToList(),
-                    _entries.Where(e => e.ProductivityRating.HasValue &&
-                        !e.IsBreak &&
-                        e.StartTime.ToLocalTime().Date == _from.ToDateTime(TimeOnly.MinValue).Date)
-                        .Select(e => (double)e.ProductivityRating!.Value)
-                        .DefaultIfEmpty(0).Average()),
-                "weekly" => MarkdownService.BuildWeeklySummary(_from, _to, _entries, _journal),
-                "review" => MarkdownService.BuildReviewExport(_from, _to, _journal),
-                _ => string.Empty
-            };
-
-            <div class="card shadow-sm">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <span class="fw-semibold"><i class="bi bi-markdown me-1"></i>Markdown Preview</span>
-                    <div class="d-flex gap-2">
-                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => CopyToClipboard(markdown)">
-                            <i class="bi bi-clipboard me-1"></i>Copy
-                        </button>
-                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => DownloadMarkdown(markdown)">
-                            <i class="bi bi-download me-1"></i>Download .md
-                        </button>
-                        @if (_tab == "daily")
-                        {
-                            <button class="btn btn-sm btn-success" @onclick="() => PushToObsidian(markdown)">
-                                <i class="bi bi-journal-arrow-up me-1"></i>Push to Obsidian
-                            </button>
-                        }
-                    </div>
-                </div>
-                <div class="card-body">
-                    @if (!string.IsNullOrEmpty(_statusMessage))
+                @if (_tab is "daily" or "weekly" or "review")
+                {
+                    var markdown = _tab switch
                     {
-                        <div class="alert @(_statusIsError ? "alert-danger" : "alert-success") py-2 mb-3">@_statusMessage</div>
-                    }
-                    <pre class="bg-light p-3 rounded small"
-                         style="white-space:pre-wrap;max-height:500px;overflow-y:auto">@markdown</pre>
-                </div>
-            </div>
-        }
+                        "daily" => MarkdownService.BuildDailyNote(
+                            _from,
+                            _entries.Where(e => e.StartTime.ToLocalTime().Date == _from.ToDateTime(TimeOnly.MinValue).Date).ToList(),
+                            _journal.Where(j => j.Date == _from).ToList(),
+                            _entries.Where(e => e.ProductivityRating.HasValue &&
+                                !e.IsBreak &&
+                                e.StartTime.ToLocalTime().Date == _from.ToDateTime(TimeOnly.MinValue).Date)
+                                .Select(e => (double)e.ProductivityRating!.Value)
+                                .DefaultIfEmpty(0).Average()),
+                        "weekly" => MarkdownService.BuildWeeklySummary(_from, _to, _entries, _journal),
+                        "review" => MarkdownService.BuildReviewExport(_from, _to, _journal, _entries),
+                        _ => string.Empty
+                    };
+
+                    <div class="card shadow-sm">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span class="fw-semibold"><i class="bi bi-markdown me-1"></i>Markdown Preview</span>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="() => CopyToClipboard(markdown)">
+                                    <i class="bi bi-clipboard me-1"></i>Copy
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="() => DownloadMarkdown(markdown)">
+                                    <i class="bi bi-download me-1"></i>Download .md
+                                </button>
+                                @if (_tab == "daily")
+                                {
+                                    <button class="btn btn-sm btn-success" @onclick="() => PushToObsidian(markdown)">
+                                        <i class="bi bi-journal-arrow-up me-1"></i>Push to Obsidian
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            @if (!string.IsNullOrEmpty(_statusMessage))
+                            {
+                                <div class="alert @(_statusIsError ? "alert-danger" : "alert-success") py-2 mb-3">@_statusMessage</div>
+                            }
+                            <pre class="bg-light p-3 rounded small"
+                                 style="white-space:pre-wrap;max-height:500px;overflow-y:auto">@markdown</pre>
+                        </div>
+                    </div>
+                }
 
 @code {
     private List<TimeEntry> _entries = [];
     private List<JournalEntry> _journal = [];
+    private List<AiUsageWeeklyItem> _aiWeeks = [];
     private UserSettings _settings = new();
     private string _tab = "summary";
     private string _preset = "week";
-    private DateOnly _from = DateOnly.FromDateTime(DateTime.Today.AddDays(-(int)DateTime.Today.DayOfWeek + 1));
+    private DateOnly _from = GetWeekStart(DateOnly.FromDateTime(DateTime.Today));
     private DateOnly _to = DateOnly.FromDateTime(DateTime.Today);
+    private bool _shouldRenderAiChart;
     private string? _statusMessage;
     private bool _statusIsError;
+
+    private List<TimeEntry> AiEntries => _entries.Where(e => e.AiUsed).OrderBy(e => e.StartTime).ToList();
+    private int TotalAiTimeSavedMinutes => AiEntries.Sum(e => e.AiTimeSavedMinutes ?? 0);
+    private int AverageAiTimeSavedMinutes => AiEntries.Count == 0
+        ? 0
+        : (int)Math.Round(AiEntries.Average(e => e.AiTimeSavedMinutes ?? 0));
 
     protected override async Task OnInitializedAsync()
     {
         _settings = await Db.UserSettings.FirstOrDefaultAsync() ?? new UserSettings();
         await ApplyPreset();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_shouldRenderAiChart || _tab != "ai" || _aiWeeks.Count == 0)
+        {
+            return;
+        }
+
+        _shouldRenderAiChart = false;
+        await JS.InvokeVoidAsync(
+            "renderAiUsageChart",
+            _aiWeeks.Select(w => w.WeekStart.ToString("yyyy-MM-dd")).ToArray(),
+            _aiWeeks.Select(w => w.AiTaskCount).ToArray(),
+            _aiWeeks.Select(w => w.TotalTimeSavedMinutes).ToArray());
     }
 
     private async Task ApplyPreset()
@@ -160,7 +344,7 @@
         (_from, _to) = _preset switch
         {
             "today" => (today, today),
-            "week" => (today.AddDays(-(int)today.DayOfWeek + 1), today),
+            "week" => (GetWeekStart(today), today),
             "month" => (new DateOnly(today.Year, today.Month, 1), today),
             _ => (_from, _to)
         };
@@ -169,7 +353,23 @@
 
     private async Task LoadData()
     {
-        (_entries, _journal) = await Handler.GetRangeDataAsync(new ReportRange(_from, _to));
+        if (_from > _to)
+        {
+            ShowStatus("From date must be on or before To date.", true);
+            return;
+        }
+
+        var range = new ReportRange(_from, _to);
+        (_entries, _journal) = await Handler.GetRangeDataAsync(range);
+        _aiWeeks = await Handler.GetWeeklyAiUsageAsync(range);
+        _shouldRenderAiChart = _tab == "ai" && _aiWeeks.Count > 0;
+        ShowStatus(string.Empty, false);
+    }
+
+    private void SelectTab(string tab)
+    {
+        _tab = tab;
+        _shouldRenderAiChart = tab == "ai" && _aiWeeks.Count > 0;
     }
 
     private async Task CopyToClipboard(string text)
@@ -203,10 +403,46 @@
         }
     }
 
+    private async Task DownloadAiReport()
+    {
+        var markdown = MarkdownService.BuildAiUsageWeeklyReport(_from, _to, _aiWeeks);
+        var filename = $"AI-Usage-Report-{_from:yyyy-MM-dd}-to-{_to:yyyy-MM-dd}.md";
+        var bytes = System.Text.Encoding.UTF8.GetBytes(markdown);
+        var base64 = Convert.ToBase64String(bytes);
+        await JS.InvokeVoidAsync("downloadBase64File", filename, base64);
+    }
+
+    private async Task ExportAiReport()
+    {
+        _statusMessage = null;
+        try
+        {
+            var markdown = MarkdownService.BuildAiUsageWeeklyReport(_from, _to, _aiWeeks);
+            var (path, overwritten) = await Handler.PushAiUsageReportAsync(_from, _to, markdown, _settings);
+            ShowStatus(overwritten ? $"File overwritten at {path}" : $"Exported to {path}", false);
+        }
+        catch (Exception ex)
+        {
+            ShowStatus(ex.Message, true);
+        }
+    }
+
     private void ShowStatus(string msg, bool isError)
     {
-        _statusMessage = msg;
+        _statusMessage = string.IsNullOrWhiteSpace(msg) ? null : msg;
         _statusIsError = isError;
+    }
+
+    private static DateOnly GetWeekStart(DateOnly date)
+    {
+        var diff = ((int)date.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
+        return date.AddDays(-diff);
+    }
+
+    private static string FormatMinutes(int minutes)
+    {
+        var span = TimeSpan.FromMinutes(minutes);
+        return $"{(int)span.TotalHours}h {span.Minutes}m";
     }
 
     private static string FormatHours(double hours)
