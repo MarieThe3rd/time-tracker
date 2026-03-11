@@ -31,7 +31,7 @@ public class MarkdownExportServiceTests
         var entry = new TimeEntry
         {
             StartTime = new DateTime(2026, 3, 9, 9, 0, 0, DateTimeKind.Utc),
-            EndTime   = new DateTime(2026, 3, 9, 11, 0, 0, DateTimeKind.Utc),
+            EndTime = new DateTime(2026, 3, 9, 11, 0, 0, DateTimeKind.Utc),
             WorkCategory = cat,
             Description = "Sprint planning",
             ProductivityRating = 4
@@ -60,10 +60,33 @@ public class MarkdownExportServiceTests
     }
 
     [Fact]
+    public void BuildDailyNote_WithAiEntries_RendersAiUsageSection()
+    {
+        var entry = new TimeEntry
+        {
+            StartTime = new DateTime(2026, 3, 9, 9, 0, 0, DateTimeKind.Utc),
+            EndTime = new DateTime(2026, 3, 9, 10, 0, 0, DateTimeKind.Utc),
+            Description = "Draft architecture note",
+            AiUsed = true,
+            AiTimeSavedMinutes = 25,
+            ValueAdded = "Clearer draft",
+            AiNotes = "Summarized options"
+        };
+
+        var md = _svc.BuildDailyNote(new DateOnly(2026, 3, 9), [entry], [], 0);
+
+        Assert.Contains("ai_usage_count: 1", md);
+        Assert.Contains("### AI Usage", md);
+        Assert.Contains("Draft architecture note", md);
+        Assert.Contains("Clearer draft", md);
+        Assert.Contains("Summarized options", md);
+    }
+
+    [Fact]
     public void BuildWeeklySummary_ContainsCorrectPeriod()
     {
         var from = new DateOnly(2026, 3, 2);
-        var to   = new DateOnly(2026, 3, 8);
+        var to = new DateOnly(2026, 3, 8);
         var md = _svc.BuildWeeklySummary(from, to, [], []);
         Assert.Contains("Mar 2", md);
         Assert.Contains("Mar 8", md);
@@ -79,13 +102,42 @@ public class MarkdownExportServiceTests
             new() { Date = new DateOnly(2026, 1, 2), Type = JournalEntryType.Challenge, Title = "Hard bug",  Body = "", CreatedAt = DateTime.UtcNow },
             new() { Date = new DateOnly(2026, 1, 3), Type = JournalEntryType.Learning,  Title = "Learned X", Body = "", CreatedAt = DateTime.UtcNow },
         };
-        var md = _svc.BuildReviewExport(new DateOnly(2026, 1, 1), new DateOnly(2026, 1, 31), entries);
+        var md = _svc.BuildReviewExport(new DateOnly(2026, 1, 1), new DateOnly(2026, 1, 31), entries, []);
         Assert.Contains("🏆", md);
         Assert.Contains("⚡", md);
         Assert.Contains("🎓", md);
         Assert.Contains("Win", md);
         Assert.Contains("Hard bug", md);
         Assert.Contains("Learned X", md);
+    }
+
+    [Fact]
+    public void BuildReviewExport_WithAiEntries_ShowsAiUsageSummarySection()
+    {
+        var journal = new List<JournalEntry>
+        {
+            new() { Date = new DateOnly(2026, 1, 3), Type = JournalEntryType.Success, Title = "Shipped UI", Body = "", CreatedAt = DateTime.UtcNow }
+        };
+        var entries = new List<TimeEntry>
+        {
+            new()
+            {
+                StartTime = new DateTime(2026, 1, 5, 9, 0, 0, DateTimeKind.Utc),
+                EndTime = new DateTime(2026, 1, 5, 10, 0, 0, DateTimeKind.Utc),
+                AiUsed = true,
+                AiTimeSavedMinutes = 15,
+                ValueAdded = "Faster review notes",
+                AiNotes = "Generated summary bullets"
+            }
+        };
+
+        var md = _svc.BuildReviewExport(new DateOnly(2026, 1, 1), new DateOnly(2026, 1, 31), journal, entries);
+
+        Assert.Contains("### AI Usage Summary", md);
+        Assert.Contains("**AI-assisted entries:** 1", md);
+        Assert.Contains("**AI time saved:** 0h 15m", md);
+        Assert.Contains("Faster review notes", md);
+        Assert.Contains("Generated summary bullets", md);
     }
 
     [Fact]
@@ -122,7 +174,7 @@ public class MarkdownExportServiceTests
         var entry = new TimeEntry
         {
             StartTime = new DateTime(2026, 3, 9, 10, 0, 0, DateTimeKind.Utc),
-            EndTime   = new DateTime(2026, 3, 9, 11, 0, 0, DateTimeKind.Utc),
+            EndTime = new DateTime(2026, 3, 9, 11, 0, 0, DateTimeKind.Utc),
             WorkCategory = null,
             Description = "Solo work"
         };
@@ -136,7 +188,7 @@ public class MarkdownExportServiceTests
         var entry = new TimeEntry
         {
             StartTime = new DateTime(2026, 3, 9, 10, 0, 0, DateTimeKind.Utc),
-            EndTime   = new DateTime(2026, 3, 9, 11, 0, 0, DateTimeKind.Utc),
+            EndTime = new DateTime(2026, 3, 9, 11, 0, 0, DateTimeKind.Utc),
             ProductivityRating = null
         };
         var md = _svc.BuildDailyNote(new DateOnly(2026, 3, 9), [entry], [], 0);
@@ -171,7 +223,7 @@ public class MarkdownExportServiceTests
             new() { StartTime = new DateTime(2026,3,2,9,0,0,DateTimeKind.Utc), EndTime = new DateTime(2026,3,2,11,0,0,DateTimeKind.Utc), WorkCategory = cat },
             new() { StartTime = new DateTime(2026,3,3,9,0,0,DateTimeKind.Utc), EndTime = new DateTime(2026,3,3,10,0,0,DateTimeKind.Utc), WorkCategory = cat },
         };
-        var md = _svc.BuildWeeklySummary(new DateOnly(2026,3,2), new DateOnly(2026,3,8), entries, []);
+        var md = _svc.BuildWeeklySummary(new DateOnly(2026, 3, 2), new DateOnly(2026, 3, 8), entries, []);
         Assert.Contains("Development", md);
         Assert.Contains("3h 0m", md);
     }
@@ -183,9 +235,33 @@ public class MarkdownExportServiceTests
         {
             new() { Date = new DateOnly(2026,3,5), Type = JournalEntryType.Success, Title = "Big win", Body = "Details", CreatedAt = DateTime.UtcNow }
         };
-        var md = _svc.BuildWeeklySummary(new DateOnly(2026,3,2), new DateOnly(2026,3,8), [], journal);
+        var md = _svc.BuildWeeklySummary(new DateOnly(2026, 3, 2), new DateOnly(2026, 3, 8), [], journal);
         Assert.Contains("### 🏆 Wins", md);
         Assert.Contains("Big win", md);
+    }
+
+    [Fact]
+    public void BuildWeeklySummary_WithAiEntries_ShowsAiUsageSummarySection()
+    {
+        var entries = new List<TimeEntry>
+        {
+            new()
+            {
+                StartTime = new DateTime(2026, 3, 2, 9, 0, 0, DateTimeKind.Utc),
+                EndTime = new DateTime(2026, 3, 2, 10, 0, 0, DateTimeKind.Utc),
+                AiUsed = true,
+                AiTimeSavedMinutes = 10,
+                ValueAdded = "Reduced boilerplate",
+                AiNotes = "Generated handler skeleton"
+            }
+        };
+
+        var md = _svc.BuildWeeklySummary(new DateOnly(2026, 3, 2), new DateOnly(2026, 3, 8), entries, []);
+
+        Assert.Contains("**AI-assisted entries:** 1", md);
+        Assert.Contains("### AI Usage Summary", md);
+        Assert.Contains("Reduced boilerplate", md);
+        Assert.Contains("Generated handler skeleton", md);
     }
 
     [Fact]
@@ -195,7 +271,7 @@ public class MarkdownExportServiceTests
         {
             new() { Date = new DateOnly(2026,3,5), Type = JournalEntryType.Challenge, Title = "Blocked", Body = "", CreatedAt = DateTime.UtcNow }
         };
-        var md = _svc.BuildWeeklySummary(new DateOnly(2026,3,2), new DateOnly(2026,3,8), [], journal);
+        var md = _svc.BuildWeeklySummary(new DateOnly(2026, 3, 2), new DateOnly(2026, 3, 8), [], journal);
         Assert.Contains("### ⚡ Challenges", md);
     }
 
@@ -206,14 +282,14 @@ public class MarkdownExportServiceTests
         {
             new() { Date = new DateOnly(2026,3,5), Type = JournalEntryType.Learning, Title = "New approach", Body = "", CreatedAt = DateTime.UtcNow }
         };
-        var md = _svc.BuildWeeklySummary(new DateOnly(2026,3,2), new DateOnly(2026,3,8), [], journal);
+        var md = _svc.BuildWeeklySummary(new DateOnly(2026, 3, 2), new DateOnly(2026, 3, 8), [], journal);
         Assert.Contains("### 🎓 Learnings", md);
     }
 
     [Fact]
     public void BuildWeeklySummary_NoJournalOfType_OmitsSection()
     {
-        var md = _svc.BuildWeeklySummary(new DateOnly(2026,3,2), new DateOnly(2026,3,8), [], []);
+        var md = _svc.BuildWeeklySummary(new DateOnly(2026, 3, 2), new DateOnly(2026, 3, 8), [], []);
         Assert.DoesNotContain("### 🏆", md);
         Assert.DoesNotContain("### ⚡", md);
         Assert.DoesNotContain("### 🎓", md);
@@ -227,19 +303,20 @@ public class MarkdownExportServiceTests
             new() { Date = new DateOnly(2026, 3, 10), Type = JournalEntryType.Success, Title = "Later win", Body = "", CreatedAt = DateTime.UtcNow },
             new() { Date = new DateOnly(2026, 1,  5), Type = JournalEntryType.Success, Title = "Earlier win", Body = "", CreatedAt = DateTime.UtcNow },
         };
-        var md = _svc.BuildReviewExport(new DateOnly(2026,1,1), new DateOnly(2026,12,31), entries);
+        var md = _svc.BuildReviewExport(new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), entries, []);
         var earlierIdx = md.IndexOf("Earlier win", StringComparison.Ordinal);
-        var laterIdx   = md.IndexOf("Later win",   StringComparison.Ordinal);
+        var laterIdx = md.IndexOf("Later win", StringComparison.Ordinal);
         Assert.True(earlierIdx < laterIdx, "Earlier date should appear before later date in review export.");
     }
 
     [Fact]
     public void BuildReviewExport_EmptyList_NoSections()
     {
-        var md = _svc.BuildReviewExport(new DateOnly(2026,1,1), new DateOnly(2026,12,31), []);
+        var md = _svc.BuildReviewExport(new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), [], []);
         Assert.DoesNotContain("🏆", md);
         Assert.DoesNotContain("⚡", md);
         Assert.DoesNotContain("🎓", md);
+        Assert.DoesNotContain("### AI Usage Summary", md);
     }
 
     [Fact]
@@ -256,7 +333,7 @@ public class MarkdownExportServiceTests
         var entry = new TimeEntry
         {
             StartTime = new DateTime(2026, 3, 9, 9, 0, 0, DateTimeKind.Utc),
-            EndTime   = new DateTime(2026, 3, 9, 10, 30, 0, DateTimeKind.Utc),
+            EndTime = new DateTime(2026, 3, 9, 10, 30, 0, DateTimeKind.Utc),
         };
         var md = _svc.BuildDailyNote(new DateOnly(2026, 3, 9), [entry], [], 0);
         Assert.Contains("1h 30m", md);
@@ -281,8 +358,8 @@ public class MarkdownExportServiceTests
     public void BuildAiUsageWeeklyReport_FrontmatterAndHeading_Present()
     {
         var from = new DateOnly(2026, 1, 1);
-        var to   = new DateOnly(2026, 1, 31);
-        var md   = _svc.BuildAiUsageWeeklyReport(from, to, OneWeekList());
+        var to = new DateOnly(2026, 1, 31);
+        var md = _svc.BuildAiUsageWeeklyReport(from, to, OneWeekList());
 
         Assert.Contains("---", md);
         Assert.Contains("tags: [time-tracker, ai-usage-report]", md);
@@ -338,7 +415,7 @@ public class MarkdownExportServiceTests
 
         Assert.Contains("2026-01-05", md);
         Assert.Contains("2026-01-12", md);
-        var firstIdx  = md.IndexOf("2026-01-05", StringComparison.Ordinal);
+        var firstIdx = md.IndexOf("2026-01-05", StringComparison.Ordinal);
         var secondIdx = md.IndexOf("2026-01-12", StringComparison.Ordinal);
         Assert.True(firstIdx < secondIdx, "First week row should appear before second week row.");
     }

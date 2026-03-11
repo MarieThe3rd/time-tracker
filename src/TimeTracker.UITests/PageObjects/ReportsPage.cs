@@ -18,9 +18,14 @@ public class ReportsPage(IPage page) : PageObjectBase(page)
 
     // Tab nav — use :text-is() for exact match; "Summary" alone would also match "Weekly Summary"
     public ILocator SummaryTab => Page.Locator("button.nav-link:text-is('Summary')");
+    public ILocator AiInsightsTab => Page.Locator("button.nav-link", new() { HasText = "AI Insights" });
     public ILocator DailyNoteTab => Page.Locator("button.nav-link", new() { HasText = "Daily Note" });
     public ILocator WeeklySummaryTab => Page.Locator("button.nav-link", new() { HasText = "Weekly Summary" });
     public ILocator ReviewExportTab => Page.Locator("button.nav-link", new() { HasText = "Review Export" });
+
+    public ILocator AiEmptyState => Page.Locator("text=No AI-assisted entries in this range.");
+    public ILocator AiUsageChart => Page.Locator("#aiUsageChart");
+    public ILocator AiWeeklySummaryCard => Page.Locator(".card-header", new() { HasText = "Weekly AI Summary" });
 
     // Markdown preview
     public ILocator MarkdownPreview => Page.Locator("pre").First;

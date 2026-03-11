@@ -72,6 +72,18 @@ public class ReportsTests(AppFixture app)
     }
 
     [Fact]
+    public async Task ReportsPage_ShowsAiInsightsTab()
+    {
+        var page = await app.NewPageAsync();
+        var reportsPage = new ReportsPage(page);
+        await reportsPage.GotoAsync();
+
+        await reportsPage.AiInsightsTab.WaitForAsync();
+
+        Assert.True(await reportsPage.AiInsightsTab.IsVisibleAsync());
+    }
+
+    [Fact]
     public async Task ReportsPage_ShowsDailyNoteTab()
     {
         var page = await app.NewPageAsync();
@@ -136,5 +148,60 @@ public class ReportsTests(AppFixture app)
 
         var cssClass = await reportsPage.DailyNoteTab.GetAttributeAsync("class");
         Assert.Contains("active", cssClass);
+    }
+
+    [Fact]
+    public async Task ReportsPage_ClickAiInsightsTab_ShowsAiAnalyticsState()
+    {
+        var page = await app.NewPageAsync();
+        var reportsPage = new ReportsPage(page);
+        await reportsPage.GotoAsync();
+
+        await reportsPage.AiInsightsTab.ClickAsync();
+        await reportsPage.WaitForBlazorAsync();
+
+        var cssClass = await reportsPage.AiInsightsTab.GetAttributeAsync("class");
+        var showsEmptyState = await reportsPage.AiEmptyState.IsVisibleAsync();
+        var showsWeeklySummary = await reportsPage.AiWeeklySummaryCard.IsVisibleAsync();
+        var showsChart = await reportsPage.AiUsageChart.IsVisibleAsync();
+
+        Assert.Contains("active", cssClass);
+        Assert.True(showsEmptyState || showsWeeklySummary);
+        Assert.True(showsEmptyState || showsChart);
+    }
+
+    [Fact]
+    public async Task ReportsPage_ReviewExport_ShowsAiSummaryWhenAiEntriesExist()
+    {
+        var page = await app.NewPageAsync();
+        var timerPage = new TimerPage(page);
+        await timerPage.GotoAsync();
+        await timerPage.ShowManualEntryAsync();
+
+        var today = DateTime.Today;
+        var start = today.AddHours(9).ToString("yyyy-MM-ddTHH:mm");
+        var end = today.AddHours(10).ToString("yyyy-MM-ddTHH:mm");
+
+        await timerPage.SaveManualEntryAsync(
+            start,
+            end,
+            "Review export AI coverage",
+            "Generated a tighter review summary",
+            isBreak: false,
+            aiUsed: true,
+            aiTimeSavedMinutes: 20,
+            aiNotes: "Used AI to structure follow-up notes.");
+
+        var reportsPage = new ReportsPage(page);
+        await reportsPage.GotoAsync();
+        await reportsPage.ReviewExportTab.ClickAsync();
+        await reportsPage.WaitForBlazorAsync();
+
+        var markdown = await reportsPage.MarkdownPreview.InnerTextAsync();
+
+        Assert.Contains("### AI Usage Summary", markdown);
+        Assert.Contains("**AI-assisted entries:**", markdown);
+        Assert.Contains("Generated a tighter review summary", markdown);
+        Assert.Contains("Used AI to structure follow-up notes.", markdown);
     }
 }

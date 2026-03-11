@@ -55,6 +55,18 @@ public class DashboardTests(AppFixture app)
     }
 
     [Fact]
+    public async Task Dashboard_ShowsAiTimeSavedCard()
+    {
+        var page = await app.NewPageAsync();
+        var dashboard = new DashboardPage(page);
+        await dashboard.GotoAsync();
+
+        await dashboard.AiTimeSavedCard.WaitForAsync();
+
+        Assert.True(await dashboard.AiTimeSavedCard.IsVisibleAsync());
+    }
+
+    [Fact]
     public async Task Dashboard_ShowsRecentEntriesSection()
     {
         var page = await app.NewPageAsync();
@@ -101,6 +113,16 @@ public class DashboardTests(AppFixture app)
         Assert.True(await dashboard.NavJournal.IsVisibleAsync());
         Assert.True(await dashboard.NavReports.IsVisibleAsync());
         Assert.True(await dashboard.NavSettings.IsVisibleAsync());
+    }
+
+    [Fact]
+    public async Task Dashboard_Navigation_DoesNotShowStandaloneAiUsageLink()
+    {
+        var page = await app.NewPageAsync();
+        var dashboard = new DashboardPage(page);
+        await dashboard.GotoAsync();
+
+        Assert.Equal(0, await dashboard.NavAiUsage.CountAsync());
     }
 
     [Fact]
