@@ -151,6 +151,24 @@ public class ReportsTests(AppFixture app)
     }
 
     [Fact]
+    public async Task ReportsPage_SelectDay_SetsFromAndToToSelectedDay()
+    {
+        var page = await app.NewPageAsync();
+        var reportsPage = new ReportsPage(page);
+        await reportsPage.GotoAsync();
+
+        var targetDate = DateTime.Today.AddDays(-2).ToString("yyyy-MM-dd");
+        await reportsPage.DayDateInput.FillAsync(targetDate);
+        await reportsPage.WaitForBlazorAsync();
+
+        var from = await reportsPage.FromDateInput.InputValueAsync();
+        var to = await reportsPage.ToDateInput.InputValueAsync();
+
+        Assert.Equal(targetDate, from);
+        Assert.Equal(targetDate, to);
+    }
+
+    [Fact]
     public async Task ReportsPage_ClickAiInsightsTab_ShowsAiAnalyticsState()
     {
         var page = await app.NewPageAsync();
