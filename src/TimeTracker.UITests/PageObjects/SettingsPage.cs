@@ -30,7 +30,9 @@ public class SettingsPage(IPage page) : PageObjectBase(page)
     public async Task AddCategoryAsync(string name)
     {
         await NewCategoryNameInput.FillAsync(name);
-        await AddCategoryButton.ClickAsync();
+        await NewCategoryNameInput.PressAsync("Tab"); // blur triggers @bind change event → _newCatName set in Blazor
+        await Page.Keyboard.PressAsync("Tab");        // Tab from color picker to Add button
+        await Page.Keyboard.PressAsync("Enter");      // activate button without pointer hit-test
         await WaitForBlazorAsync();
     }
 }

@@ -10,11 +10,10 @@ public class ReportsPage(IPage page) : PageObjectBase(page)
     // Preset is a <select> with options: today, week, month, custom
     public ILocator PresetSelect => Page.Locator("select.form-select").First;
 
-    // Date inputs — scoped to the date-range card (first card on page) to avoid
-    // matching the QuickAdd panel's hidden date input
-    private ILocator DateRangeCard => Page.Locator(".card").First;
-    public ILocator FromDateInput => DateRangeCard.Locator("input[type='date']").First;
-    public ILocator ToDateInput => DateRangeCard.Locator("input[type='date']").Last;
+    // Date inputs — use stable IDs so adding future inputs doesn't break locators
+    public ILocator FromDateInput => Page.Locator("#reportFrom");
+    public ILocator ToDateInput => Page.Locator("#reportTo");
+    public ILocator DayDateInput => Page.Locator("#reportDay");
 
     // Tab nav — use :text-is() for exact match; "Summary" alone would also match "Weekly Summary"
     public ILocator SummaryTab => Page.Locator("button.nav-link:text-is('Summary')");
