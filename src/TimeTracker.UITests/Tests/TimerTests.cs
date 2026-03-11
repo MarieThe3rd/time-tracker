@@ -240,7 +240,7 @@ public class TimerTests(AppFixture app)
 
         await timerPage.StartEditEntryByDescriptionAsync("Entry before edit");
 
-        var editedStart = today.AddHours(12).ToString("yyyy-MM-ddTHH:mm");
+        var editedStart = today.AddHours(11).AddMinutes(30).ToString("yyyy-MM-ddTHH:mm");
         await timerPage.EditStartInput.FillAsync(editedStart);
         await timerPage.EditDescriptionInput.FillAsync("Entry after edit");
         await timerPage.EditCategorySelect.SelectOptionAsync(new[] { "2" });

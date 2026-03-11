@@ -29,4 +29,32 @@ public class ReportsPage(IPage page) : PageObjectBase(page)
 
     // Markdown preview
     public ILocator MarkdownPreview => Page.Locator("pre").First;
+
+    public async Task<IReadOnlyList<string>> GetAiChartDatasetLabelsAsync()
+    {
+        var labels = await Page.EvaluateAsync<string[]>(@"() => {
+            const chart = window.Chart?.getChart('aiUsageChart');
+            if (!chart) {
+                return [];
+            }
+
+            return chart.data.datasets.map(d => d.label ?? '');
+        }");
+
+        return labels;
+    }
+
+    public async Task<IReadOnlyList<double>> GetAiChartDatasetDataAsync(int datasetIndex)
+    {
+        var data = await Page.EvaluateAsync<double[]>(@"(idx) => {
+            const chart = window.Chart?.getChart('aiUsageChart');
+            if (!chart || !chart.data?.datasets?.[idx]) {
+                return [];
+            }
+
+            return chart.data.datasets[idx].data.map(value => Number(value ?? 0));
+        }", datasetIndex);
+
+        return data;
+    }
 }

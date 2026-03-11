@@ -60,13 +60,17 @@ Integrate AI usage tracking into the existing time-tracking experience instead o
 | +----------------+ +----------------+ +------------------------+ |
 |                                                                  |
 | AI Usage Over Time                         [Download] [Export]   |
-| [ bar/line chart ]                                               |
+| [ grouped bars: Actual vs Projected Without AI ]                 |
 |                                                                  |
 | Weekly AI Summary                                                |
 | Week Start | Week End | AI Tasks | Time Saved | Value | Notes    |
 | 2026-03-02 | 2026-03-08 |   4     | 1h 10m     | ...   | ...     |
 +------------------------------------------------------------------+
 ```
+
+Chart semantics:
+`Actual Time Spent (min)` represents logged minutes on AI-assisted entries.
+`Projected Without AI (min)` represents `actual spent + time saved` for those same entries.
 
 ## Files Touched
 

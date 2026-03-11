@@ -158,6 +158,7 @@ public class ReportsHandlerTests
         Assert.Equal(new DateOnly(2026, 3, 8), week.WeekEnd);
         Assert.Equal(2, week.AiTaskCount);
         Assert.Equal(40, week.TotalTimeSavedMinutes);
+        Assert.Equal(120, week.TotalTimeSpentMinutes);
         Assert.Contains("Faster coverage", week.ValueAdded);
         Assert.Contains("Refactoring help", week.Notes);
     }
@@ -188,5 +189,36 @@ public class ReportsHandlerTests
         var weeks = await handler.GetWeeklyAiUsageAsync(new ReportRange(new DateOnly(2026, 3, 1), new DateOnly(2026, 3, 7)));
 
         Assert.Empty(weeks);
+    }
+
+    [Fact]
+    public async Task GetWeeklyAiUsageAsync_ComputesSpentMinutesPerWeek()
+    {
+        using var db = CreateDb();
+        db.TimeEntries.AddRange(
+            new TimeEntry
+            {
+                StartTime = new DateTime(2026, 3, 2, 9, 0, 0, DateTimeKind.Utc),
+                EndTime = new DateTime(2026, 3, 2, 9, 45, 0, DateTimeKind.Utc),
+                AiUsed = true,
+                AiTimeSavedMinutes = 10
+            },
+            new TimeEntry
+            {
+                StartTime = new DateTime(2026, 3, 9, 10, 0, 0, DateTimeKind.Utc),
+                EndTime = new DateTime(2026, 3, 9, 11, 30, 0, DateTimeKind.Utc),
+                AiUsed = true,
+                AiTimeSavedMinutes = 20
+            });
+        await db.SaveChangesAsync();
+
+        var handler = new ReportsHandler(db);
+        var weeks = await handler.GetWeeklyAiUsageAsync(new ReportRange(new DateOnly(2026, 3, 1), new DateOnly(2026, 3, 14)));
+
+        Assert.Equal(2, weeks.Count);
+        Assert.Equal(new DateOnly(2026, 3, 2), weeks[0].WeekStart);
+        Assert.Equal(45, weeks[0].TotalTimeSpentMinutes);
+        Assert.Equal(new DateOnly(2026, 3, 9), weeks[1].WeekStart);
+        Assert.Equal(90, weeks[1].TotalTimeSpentMinutes);
     }
 }

@@ -204,4 +204,43 @@ public class ReportsTests(AppFixture app)
         Assert.Contains("Generated a tighter review summary", markdown);
         Assert.Contains("Used AI to structure follow-up notes.", markdown);
     }
+
+    [Fact]
+    public async Task ReportsPage_AiInsights_ChartShowsActualVsProjectedMinutes()
+    {
+        var page = await app.NewPageAsync();
+        var timerPage = new TimerPage(page);
+        await timerPage.GotoAsync();
+        await timerPage.ShowManualEntryAsync();
+
+        var today = DateTime.Today;
+        var start = today.AddHours(14).ToString("yyyy-MM-ddTHH:mm");
+        var end = today.AddHours(15).ToString("yyyy-MM-ddTHH:mm");
+
+        await timerPage.SaveManualEntryAsync(
+            start,
+            end,
+            "AI chart semantics",
+            "Faster first draft",
+            isBreak: false,
+            aiUsed: true,
+            aiTimeSavedMinutes: 30,
+            aiNotes: "Generated structured outline.");
+
+        var reportsPage = new ReportsPage(page);
+        await reportsPage.GotoAsync();
+        await reportsPage.AiInsightsTab.ClickAsync();
+        await reportsPage.WaitForBlazorAsync();
+
+        var labels = await reportsPage.GetAiChartDatasetLabelsAsync();
+        Assert.Contains("Actual Time Spent (min)", labels);
+        Assert.Contains("Projected Without AI (min)", labels);
+
+        var spent = await reportsPage.GetAiChartDatasetDataAsync(0);
+        var projected = await reportsPage.GetAiChartDatasetDataAsync(1);
+
+        Assert.NotEmpty(spent);
+        Assert.NotEmpty(projected);
+        Assert.True(projected[0] > spent[0]);
+    }
 }

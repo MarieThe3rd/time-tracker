@@ -57,6 +57,7 @@ public class ReportsHandler(AppDbContext db)
                 WeekEnd = g.Key.AddDays(6),
                 AiTaskCount = g.Count(),
                 TotalTimeSavedMinutes = g.Sum(e => e.AiTimeSavedMinutes ?? 0),
+                TotalTimeSpentMinutes = (int)g.Sum(e => (e.EndTime!.Value - e.StartTime).TotalMinutes),
                 ValueAdded = string.Join("; ", g
                     .Where(e => !string.IsNullOrWhiteSpace(e.ValueAdded))
                     .Select(e => e.ValueAdded!)),
