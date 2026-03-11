@@ -17,6 +17,7 @@ public class AiUsageWeeklyItem
   public DateOnly WeekEnd { get; set; }
   public int AiTaskCount { get; set; }
   public int TotalTimeSavedMinutes { get; set; }
+  public int TotalTimeSpentMinutes { get; set; }
   public string ValueAdded { get; set; } = string.Empty;
   public string Notes { get; set; } = string.Empty;
 }
