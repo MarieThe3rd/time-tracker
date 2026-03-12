@@ -141,8 +141,9 @@ public class ReportsHandler(ITimeEntryRepository timeEntryRepo, IJournalEntryRep
         var folder = Path.Combine(settings.VaultRootPath, settings.WeeklyNotesSubfolder);
         Directory.CreateDirectory(folder);
 
-        var year = range.From.Year;
-        var week = System.Globalization.ISOWeek.GetWeekOfYear(range.From.ToDateTime(TimeOnly.MinValue));
+        var fromDate = range.From.ToDateTime(TimeOnly.MinValue);
+        var year = System.Globalization.ISOWeek.GetYear(fromDate);
+        var week = System.Globalization.ISOWeek.GetWeekOfYear(fromDate);
         var filePath = Path.Combine(folder, $"{year}-W{week:D2}.md");
 
         bool overwritten = File.Exists(filePath);

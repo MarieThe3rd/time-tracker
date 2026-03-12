@@ -137,6 +137,19 @@ public class ReportsHandlerWeeklyPushTests : IDisposable
     }
 
     [Fact]
+    public async Task PushWeeklySummaryAsync_YearBoundary_UsesIsoYear()
+    {
+        var handler = CreateHandler();
+        var settings = SettingsFor();
+        // Dec 30, 2024 (Monday) is ISO week 2025-W01 — calendar year 2024 but ISO year 2025
+        var range = WeekRange(new DateOnly(2024, 12, 30));
+
+        var (filePath, _) = await handler.PushWeeklySummaryAsync(range, "# test", settings);
+
+        Assert.EndsWith("2025-W01.md", filePath);
+    }
+
+    [Fact]
     public async Task PushWeeklySummaryAsync_WritesToWeeklyNotesSubfolder_NotDailySubfolder()
     {
         var handler = CreateHandler();
