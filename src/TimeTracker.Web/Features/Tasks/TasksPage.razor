@@ -13,7 +13,7 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h4><i class="bi bi-check2-square me-2"></i>Tasks</h4>
-    <button class="btn btn-primary" @onclick="OpenAddForm">
+    <button id="add-task-btn" class="btn btn-primary" @onclick="OpenAddForm">
         <i class="bi bi-plus-lg me-1"></i> New Task
     </button>
 </div>
@@ -24,7 +24,7 @@
         <div class="row g-2 align-items-end flex-wrap">
             <div class="col-auto">
                 <label class="form-label mb-1 small fw-semibold">Status</label>
-                <select class="form-select form-select-sm" @bind="_filterStatus" @bind:after="Refresh">
+                <select id="filter-status" class="form-select form-select-sm" @bind="_filterStatus" @bind:after="Refresh">
                     <option value="">All statuses</option>
                     @foreach (var s in Enum.GetValues<TaskItemStatus>())
                     {
@@ -34,7 +34,7 @@
             </div>
             <div class="col-auto">
                 <label class="form-label mb-1 small fw-semibold">Priority</label>
-                <select class="form-select form-select-sm" @bind="_filterPriority" @bind:after="Refresh">
+                <select id="filter-priority" class="form-select form-select-sm" @bind="_filterPriority" @bind:after="Refresh">
                     <option value="">All priorities</option>
                     @foreach (var p in Enum.GetValues<TaskItemPriority>())
                     {
@@ -44,12 +44,12 @@
             </div>
             <div class="col-auto">
                 <label class="form-label mb-1 small fw-semibold">Deliverable To</label>
-                <input type="text" class="form-control form-control-sm" style="width:160px"
+                <input id="filter-deliverable-to" type="text" class="form-control form-control-sm" style="width:160px"
                        @bind="_filterDeliverableTo" @bind:after="Refresh" placeholder="Filter…" />
             </div>
             <div class="col-auto">
                 <label class="form-label mb-1 small fw-semibold">Category</label>
-                <select class="form-select form-select-sm" @bind="_filterCategoryId" @bind:after="Refresh">
+                <select id="filter-category" class="form-select form-select-sm" @bind="_filterCategoryId" @bind:after="Refresh">
                     <option value="">All categories</option>
                     @foreach (var cat in _categories)
                     {
@@ -87,7 +87,7 @@ else
                 && task.DueDate.Value < DateOnly.FromDateTime(DateTime.Today)
                 && task.Status != TaskItemStatus.Done;
 
-            <div class="card shadow-sm @(task.Status == TaskItemStatus.Blocked ? "border-danger" : "")">
+            <div data-testid="task-card" class="card shadow-sm @(task.Status == TaskItemStatus.Blocked ? "border-danger" : "")">
                 <div class="card-body py-2 px-3">
                     <div class="d-flex align-items-center gap-2 flex-wrap">
                         <span class="badge @PriorityBadge(task.Priority)">@task.Priority</span>
@@ -130,10 +130,10 @@ else
                                     }
                                 </small>
                             }
-                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => OpenEditForm(task)" title="Edit">
+                            <button id="edit-task-@task.Id" class="btn btn-sm btn-outline-secondary" @onclick="() => OpenEditForm(task)" title="Edit">
                                 <i class="bi bi-pencil"></i>
                             </button>
-                            <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmDelete(task)" title="Delete">
+                            <button id="delete-task-@task.Id" class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmDelete(task)" title="Delete">
                                 <i class="bi bi-trash"></i>
                             </button>
                         </div>
@@ -160,19 +160,19 @@ else
 
                         <div class="mb-3">
                             <label class="form-label">Title <span class="text-danger">*</span></label>
-                            <InputText class="form-control" @bind-Value="_form.Title" placeholder="Task title" />
+                            <InputText id="task-title" class="form-control" @bind-Value="_form.Title" placeholder="Task title" />
                             <ValidationMessage For="() => _form.Title" class="text-danger small" />
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label">Description</label>
-                            <InputTextArea class="form-control" @bind-Value="_form.Description" rows="2" />
+                            <InputTextArea id="task-description" class="form-control" @bind-Value="_form.Description" rows="2" />
                         </div>
 
                         <div class="row g-3 mb-3">
                             <div class="col-md-6">
                                 <label class="form-label">Status</label>
-                                <InputSelect class="form-select" @bind-Value="_form.Status">
+                                <InputSelect id="task-status" class="form-select" @bind-Value="_form.Status">
                                     @foreach (var s in Enum.GetValues<TaskItemStatus>())
                                     {
                                         <option value="@s">@FormatStatus(s)</option>
@@ -181,7 +181,7 @@ else
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Priority</label>
-                                <InputSelect class="form-select" @bind-Value="_form.Priority">
+                                <InputSelect id="task-priority" class="form-select" @bind-Value="_form.Priority">
                                     @foreach (var p in Enum.GetValues<TaskItemPriority>())
                                     {
                                         <option value="@p">@p</option>
@@ -192,23 +192,23 @@ else
 
                         <div class="mb-3">
                             <label class="form-label">Due Date</label>
-                            <InputDate class="form-control" TValue="DateOnly?" @bind-Value="_form.DueDate" />
+                            <InputDate id="task-due-date" class="form-control" TValue="DateOnly?" @bind-Value="_form.DueDate" />
                         </div>
 
                         <div class="row g-3 mb-3">
                             <div class="col-md-6">
                                 <label class="form-label">Assigned By</label>
-                                <InputText class="form-control" @bind-Value="_form.AssignedBy" placeholder="Who assigned this?" />
+                                <InputText id="task-assigned-by" class="form-control" @bind-Value="_form.AssignedBy" placeholder="Who assigned this?" />
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Deliverable To</label>
-                                <InputText class="form-control" @bind-Value="_form.DeliverableTo" placeholder="Who receives this?" />
+                                <InputText id="task-deliverable-to" class="form-control" @bind-Value="_form.DeliverableTo" placeholder="Who receives this?" />
                             </div>
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label">Category</label>
-                            <InputSelect class="form-select" TValue="int?" @bind-Value="_form.WorkCategoryId">
+                            <InputSelect id="task-category" class="form-select" TValue="int?" @bind-Value="_form.WorkCategoryId">
                                 <option value="">— No category —</option>
                                 @foreach (var cat in _categories)
                                 {
@@ -219,7 +219,7 @@ else
 
                         <div class="mb-3">
                             <label class="form-label">Notes</label>
-                            <InputTextArea class="form-control" @bind-Value="_form.Notes" rows="3" />
+                            <InputTextArea id="task-notes" class="form-control" @bind-Value="_form.Notes" rows="3" />
                         </div>
 
                         <div class="d-flex justify-content-end gap-2 pt-2 border-top mt-3">
@@ -254,7 +254,7 @@ else
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-secondary" @onclick="CancelDelete">Cancel</button>
-                    <button class="btn btn-danger" @onclick="ExecuteDelete">
+                    <button id="delete-confirm-btn" class="btn btn-danger" @onclick="ExecuteDelete">
                         <i class="bi bi-trash me-1"></i> Delete
                     </button>
                 </div>

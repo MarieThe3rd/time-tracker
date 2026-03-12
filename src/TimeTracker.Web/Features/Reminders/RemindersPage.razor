@@ -13,7 +13,7 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h4><i class="bi bi-bell me-2"></i>Reminders</h4>
-    <button class="btn btn-primary" @onclick="OpenAddForm">
+    <button id="add-reminder-btn" class="btn btn-primary" @onclick="OpenAddForm">
         <i class="bi bi-plus-lg me-1"></i> New Reminder
     </button>
 </div>
@@ -48,7 +48,7 @@ else
             var isOverdue = !isDismissed && reminder.RemindOn <= DateTime.Now;
 
             <div class="col-12 col-md-6 col-xl-4">
-                <div class="card shadow-sm h-100 @(isDismissed ? "opacity-50" : "")">
+                <div data-testid="reminder-card" class="card shadow-sm h-100 @(isDismissed ? "opacity-50" : "")">
                     <div class="card-body">
                         <div class="d-flex align-items-start gap-2 mb-2">
                             <span class="fw-bold flex-grow-1">@reminder.Title</span>
@@ -75,17 +75,17 @@ else
                         <div class="d-flex gap-2 flex-wrap mt-2">
                             @if (!isDismissed)
                             {
-                                <button class="btn btn-sm btn-outline-warning" @onclick="() => OpenSnooze(reminder)" title="Snooze">
+                        <button id="snooze-@reminder.Id" class="btn btn-sm btn-outline-warning" @onclick="() => OpenSnooze(reminder)" title="Snooze">
                                     <i class="bi bi-alarm me-1"></i> Snooze
                                 </button>
-                                <button class="btn btn-sm btn-outline-success" @onclick="() => Dismiss(reminder.Id)" title="Dismiss">
+                        <button id="dismiss-@reminder.Id" class="btn btn-sm btn-outline-success" @onclick="() => Dismiss(reminder.Id)" title="Dismiss">
                                     <i class="bi bi-check-lg me-1"></i> Dismiss
                                 </button>
                             }
-                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => OpenEditForm(reminder)" title="Edit">
+                            <button id="edit-@reminder.Id" class="btn btn-sm btn-outline-secondary" @onclick="() => OpenEditForm(reminder)" title="Edit">
                                 <i class="bi bi-pencil"></i>
                             </button>
-                            <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmDelete(reminder)" title="Delete">
+                            <button id="delete-@reminder.Id" class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmDelete(reminder)" title="Delete">
                                 <i class="bi bi-trash"></i>
                             </button>
                         </div>
@@ -112,18 +112,18 @@ else
 
                         <div class="mb-3">
                             <label class="form-label">Title <span class="text-danger">*</span></label>
-                            <InputText class="form-control" @bind-Value="_form.Title" placeholder="Reminder title" />
+                            <InputText id="reminder-title" class="form-control" @bind-Value="_form.Title" placeholder="Reminder title" />
                             <ValidationMessage For="() => _form.Title" class="text-danger small" />
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label">Notes</label>
-                            <InputTextArea class="form-control" @bind-Value="_form.Notes" rows="3" />
+                            <InputTextArea id="reminder-notes" class="form-control" @bind-Value="_form.Notes" rows="3" />
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label">Remind On <span class="text-danger">*</span></label>
-                            <input type="datetime-local" class="form-control" @bind="_form.RemindOn" />
+                            <input id="reminder-remind-on" type="datetime-local" class="form-control" @bind="_form.RemindOn" />
                             @if (_remindOnError)
                             {
                                 <div class="text-danger small">Remind On is required.</div>
@@ -132,7 +132,7 @@ else
 
                         <div class="mb-3">
                             <label class="form-label">Repeat</label>
-                            <InputSelect class="form-select" @bind-Value="_form.Repeat">
+                            <InputSelect id="reminder-repeat" class="form-select" @bind-Value="_form.Repeat">
                                 @foreach (var r in Enum.GetValues<ReminderRepeat>())
                                 {
                                     <option value="@r">@r</option>
@@ -144,7 +144,7 @@ else
                         {
                             <div class="mb-3">
                                 <label class="form-label">Status</label>
-                                <InputSelect class="form-select" @bind-Value="_form.Status">
+                                <InputSelect id="reminder-status" class="form-select" @bind-Value="_form.Status">
                                     @foreach (var s in Enum.GetValues<ReminderStatus>())
                                     {
                                         <option value="@s">@s</option>
@@ -184,12 +184,12 @@ else
                     </p>
                     <div class="mb-3">
                         <label class="form-label">New reminder time</label>
-                        <input type="datetime-local" class="form-control" @bind="_snoozeDateTime" />
+                        <input id="snooze-time-input" type="datetime-local" class="form-control" @bind="_snoozeDateTime" />
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-secondary" @onclick="CancelSnooze">Cancel</button>
-                    <button class="btn btn-warning" @onclick="ExecuteSnooze">
+                    <button id="snooze-confirm-btn" class="btn btn-warning" @onclick="ExecuteSnooze">
                         <i class="bi bi-alarm me-1"></i> Snooze
                     </button>
                 </div>
@@ -217,7 +217,7 @@ else
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-secondary" @onclick="CancelDelete">Cancel</button>
-                    <button class="btn btn-danger" @onclick="ExecuteDelete">
+                    <button id="delete-confirm-btn" class="btn btn-danger" @onclick="ExecuteDelete">
                         <i class="bi bi-trash me-1"></i> Delete
                     </button>
                 </div>
