@@ -1,0 +1,1 @@
+icons - [bootstrap icons](https://icons.getbootstrap.com/)
