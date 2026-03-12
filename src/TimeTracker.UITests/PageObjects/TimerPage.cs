@@ -9,7 +9,8 @@ public class TimerPage(IPage page) : PageObjectBase(page)
 
     public ILocator CategorySelect => Page.Locator("select.form-select").First;
     public ILocator DescriptionInput => Page.Locator("input[placeholder='What are you working on?']");
-    public ILocator ElapsedDisplay => Page.Locator(".display-6.fw-bold.font-monospace");
+    public ILocator ElapsedDisplay => Page.Locator(".fs-4.fw-bold.font-monospace");
+    public ILocator TimerStripElapsed => Page.Locator(".timer-strip span.font-monospace");
 
     // Use btn-lg to distinguish the page's Start/Stop from the timer-strip Stop (btn-sm)
     public ILocator StartButton => Page.Locator("button.btn-success.btn-lg");

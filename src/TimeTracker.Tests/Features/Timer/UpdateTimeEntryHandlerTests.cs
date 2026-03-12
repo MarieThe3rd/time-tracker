@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TimeTracker.Web.Data;
 using TimeTracker.Web.Data.Models;
+using TimeTracker.Web.Data.Repositories.Sql;
 using TimeTracker.Web.Features.Timer;
 
 namespace TimeTracker.Tests.Features.Timer;
@@ -30,7 +31,7 @@ public class UpdateTimeEntryHandlerTests
     });
     await db.SaveChangesAsync();
 
-    var handler = new UpdateTimeEntryHandler(db);
+    var handler = new UpdateTimeEntryHandler(new SqlTimeEntryRepository(db));
     var updated = await handler.HandleAsync(new UpdateTimeEntryInput(
         1,
         new DateTime(2026, 3, 9, 15, 0, 0, DateTimeKind.Utc),
@@ -57,7 +58,7 @@ public class UpdateTimeEntryHandlerTests
   public async Task HandleAsync_NonExistentEntry_ReturnsNull()
   {
     using var db = CreateDb();
-    var handler = new UpdateTimeEntryHandler(db);
+    var handler = new UpdateTimeEntryHandler(new SqlTimeEntryRepository(db));
 
     var result = await handler.HandleAsync(new UpdateTimeEntryInput(
         999,
@@ -88,7 +89,7 @@ public class UpdateTimeEntryHandlerTests
     });
     await db.SaveChangesAsync();
 
-    var handler = new UpdateTimeEntryHandler(db);
+    var handler = new UpdateTimeEntryHandler(new SqlTimeEntryRepository(db));
     var result = await handler.HandleAsync(new UpdateTimeEntryInput(
         2,
         DateTime.UtcNow.AddHours(-2),
@@ -119,7 +120,7 @@ public class UpdateTimeEntryHandlerTests
     });
     await db.SaveChangesAsync();
 
-    var handler = new UpdateTimeEntryHandler(db);
+    var handler = new UpdateTimeEntryHandler(new SqlTimeEntryRepository(db));
     await Assert.ThrowsAsync<ArgumentException>(() => handler.HandleAsync(new UpdateTimeEntryInput(
         3,
         DateTime.UtcNow.AddHours(-2),

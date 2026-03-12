@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TimeTracker.Web.Data;
 using TimeTracker.Web.Data.Models;
+using TimeTracker.Web.Data.Repositories.Sql;
 using TimeTracker.Web.Features.Journal.AddEntry;
 
 namespace TimeTracker.Tests.Features.Journal;
@@ -15,11 +16,14 @@ public class AddEntryHandlerTests
         return new AppDbContext(options);
     }
 
+    private static AddEntryHandler CreateHandler(AppDbContext db) =>
+        new AddEntryHandler(new SqlJournalEntryRepository(db));
+
     [Fact]
     public async Task HandleAsync_ValidInput_SavesEntry()
     {
         using var db = CreateDb();
-        var handler = new AddEntryHandler(db);
+        var handler = CreateHandler(db);
         var input = new AddJournalEntryInput(JournalEntryType.Success, "Shipped the feature", "It was great");
 
         var entry = await handler.HandleAsync(input);
@@ -34,7 +38,7 @@ public class AddEntryHandlerTests
     public async Task HandleAsync_DefaultsToToday_WhenNoDatProvided()
     {
         using var db = CreateDb();
-        var handler = new AddEntryHandler(db);
+        var handler = CreateHandler(db);
         var input = new AddJournalEntryInput(JournalEntryType.Learning, "Learned something", "");
 
         var entry = await handler.HandleAsync(input);
@@ -46,7 +50,7 @@ public class AddEntryHandlerTests
     public async Task HandleAsync_TrimsWhitespace_OnTitleAndBody()
     {
         using var db = CreateDb();
-        var handler = new AddEntryHandler(db);
+        var handler = CreateHandler(db);
         var input = new AddJournalEntryInput(JournalEntryType.Challenge, "  Title  ", "  Body  ");
 
         var entry = await handler.HandleAsync(input);
@@ -59,7 +63,7 @@ public class AddEntryHandlerTests
     public async Task HandleAsync_EmptyTitle_ThrowsArgumentException()
     {
         using var db = CreateDb();
-        var handler = new AddEntryHandler(db);
+        var handler = CreateHandler(db);
         var input = new AddJournalEntryInput(JournalEntryType.Success, "", "body");
 
         await Assert.ThrowsAsync<ArgumentException>(() => handler.HandleAsync(input));
@@ -69,7 +73,7 @@ public class AddEntryHandlerTests
     public async Task HandleAsync_WhitespaceOnlyTitle_ThrowsArgumentException()
     {
         using var db = CreateDb();
-        var handler = new AddEntryHandler(db);
+        var handler = CreateHandler(db);
         var input = new AddJournalEntryInput(JournalEntryType.Success, "   ", "body");
 
         await Assert.ThrowsAsync<ArgumentException>(() => handler.HandleAsync(input));
@@ -82,7 +86,7 @@ public class AddEntryHandlerTests
     public async Task HandleAsync_AllJournalTypes_Persist(JournalEntryType type)
     {
         using var db = CreateDb();
-        var handler = new AddEntryHandler(db);
+        var handler = CreateHandler(db);
         var input = new AddJournalEntryInput(type, "Some title", "Some body");
 
         var entry = await handler.HandleAsync(input);
@@ -94,7 +98,7 @@ public class AddEntryHandlerTests
     public async Task HandleAsync_ExplicitDate_UsesProvidedDate()
     {
         using var db = CreateDb();
-        var handler = new AddEntryHandler(db);
+        var handler = CreateHandler(db);
         var explicitDate = new DateOnly(2025, 12, 31);
         var input = new AddJournalEntryInput(JournalEntryType.Success, "Year-end win", "", Date: explicitDate);
 
@@ -115,7 +119,7 @@ public class AddEntryHandlerTests
         });
         await db.SaveChangesAsync();
 
-        var handler = new AddEntryHandler(db);
+        var handler = CreateHandler(db);
         var input = new AddJournalEntryInput(
             JournalEntryType.Success, "Good session", "Details", LinkedTimeEntryId: 99);
 
@@ -128,7 +132,7 @@ public class AddEntryHandlerTests
     public async Task HandleAsync_SetsCreatedAt_ToRecentUtcTime()
     {
         using var db = CreateDb();
-        var handler = new AddEntryHandler(db);
+        var handler = CreateHandler(db);
         var before = DateTime.UtcNow.AddSeconds(-1);
         var input = new AddJournalEntryInput(JournalEntryType.Learning, "Test", "Body");
 

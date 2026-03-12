@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TimeTracker.Web.Data;
+using TimeTracker.Web.Data.Repositories;
+using TimeTracker.Web.Data.Repositories.Sql;
 using TimeTracker.Web.Features.Timer;
 using TimeTracker.Web.Features.Timer.ManualEntry;
 using TimeTracker.Web.Features.Journal.AddEntry;
@@ -17,6 +19,13 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Repository implementations
+builder.Services.AddScoped<ITimeEntryRepository, SqlTimeEntryRepository>();
+builder.Services.AddScoped<IJournalEntryRepository, SqlJournalEntryRepository>();
+builder.Services.AddScoped<IWorkCategoryRepository, SqlWorkCategoryRepository>();
+builder.Services.AddScoped<IUserSettingsRepository, SqlUserSettingsRepository>();
+builder.Services.AddScoped<ITagRepository, SqlTagRepository>();
 
 // Journal feature handlers
 builder.Services.AddScoped<AddEntryHandler>();

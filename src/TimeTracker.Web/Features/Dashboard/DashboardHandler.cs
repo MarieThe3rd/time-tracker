@@ -1,6 +1,5 @@
-using Microsoft.EntityFrameworkCore;
-using TimeTracker.Web.Data;
 using TimeTracker.Web.Data.Models;
+using TimeTracker.Web.Data.Repositories;
 
 namespace TimeTracker.Web.Features.Dashboard;
 
@@ -20,24 +19,21 @@ public record DashboardData(
     List<JournalEntry> RecentJournal,
     AiDashboardSummary AiSummary);
 
-public class DashboardHandler(AppDbContext db)
+public class DashboardHandler(ITimeEntryRepository timeEntryRepo, IJournalEntryRepository journalRepo)
 {
     public async Task<DashboardData> HandleAsync()
     {
-        var todayStart = DateTime.Today.ToUniversalTime();
-        var todayEnd = todayStart.AddDays(1);
+        var todayLocal = DateOnly.FromDateTime(DateTime.Now);
+        var todayEndUtc = todayLocal.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Local).ToUniversalTime();
         var weekStart = GetWeekStart(DateOnly.FromDateTime(DateTime.Today))
             .ToDateTime(TimeOnly.MinValue)
             .ToUniversalTime();
 
-        var todayEntries = await db.TimeEntries
-            .Include(e => e.WorkCategory)
-            .Where(e => e.StartTime >= todayStart && e.StartTime < todayEnd && e.EndTime != null)
-            .ToListAsync();
+        var allTodayEntries = await timeEntryRepo.GetTodayAsync(includeCategory: true);
+        var todayEntries = allTodayEntries.Where(e => e.EndTime != null).ToList();
 
-        var weekAiEntries = await db.TimeEntries
-            .Where(e => e.AiUsed && e.StartTime >= weekStart && e.StartTime < todayEnd && e.EndTime != null)
-            .ToListAsync();
+        var weekEntries = await timeEntryRepo.GetByDateRangeAsync(weekStart, todayEndUtc);
+        var weekAiEntries = weekEntries.Where(e => e.AiUsed).ToList();
 
         var total = todayEntries.Aggregate(TimeSpan.Zero,
             (acc, e) => acc + (e.Duration ?? TimeSpan.Zero));
@@ -60,11 +56,7 @@ public class DashboardHandler(AppDbContext db)
             .Take(5)
             .ToList();
 
-        var journal = await db.JournalEntries
-            .OrderByDescending(e => e.Date)
-            .ThenByDescending(e => e.CreatedAt)
-            .Take(3)
-            .ToListAsync();
+        var journal = await journalRepo.GetRecentAsync(3);
 
         var todayAiEntries = todayEntries.Where(e => e.AiUsed).ToList();
         var aiSummary = new AiDashboardSummary(

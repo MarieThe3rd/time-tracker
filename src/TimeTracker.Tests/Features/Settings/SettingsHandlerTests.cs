@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TimeTracker.Web.Data;
 using TimeTracker.Web.Data.Models;
+using TimeTracker.Web.Data.Repositories.Sql;
 using TimeTracker.Web.Features.Settings;
 
 namespace TimeTracker.Tests.Features.Settings;
@@ -15,11 +16,14 @@ public class SettingsHandlerTests
         return new AppDbContext(options);
     }
 
+    private static SettingsHandler CreateHandler(AppDbContext db) =>
+        new SettingsHandler(new SqlUserSettingsRepository(db), new SqlWorkCategoryRepository(db));
+
     [Fact]
     public async Task GetAsync_WhenNoSettings_ReturnsDefault()
     {
         using var db = CreateDb();
-        var handler = new SettingsHandler(db);
+        var handler = CreateHandler(db);
 
         var settings = await handler.GetAsync();
 
@@ -31,7 +35,7 @@ public class SettingsHandlerTests
     public async Task SaveAsync_PersistsVaultPath()
     {
         using var db = CreateDb();
-        var handler = new SettingsHandler(db);
+        var handler = CreateHandler(db);
         var settings = await handler.GetAsync();
         settings.VaultRootPath = @"C:\MyVault";
 
@@ -45,7 +49,7 @@ public class SettingsHandlerTests
     public async Task AddCategoryAsync_AddsNewCategory()
     {
         using var db = CreateDb();
-        var handler = new SettingsHandler(db);
+        var handler = CreateHandler(db);
 
         var cat = await handler.AddCategoryAsync("On Call", "#dc3545", "bi-telephone");
 
@@ -63,7 +67,7 @@ public class SettingsHandlerTests
         });
         await db.SaveChangesAsync();
 
-        var handler = new SettingsHandler(db);
+        var handler = CreateHandler(db);
         await handler.DeleteCategoryAsync(50);
 
         Assert.Equal(1, await db.WorkCategories.CountAsync());
@@ -79,7 +83,7 @@ public class SettingsHandlerTests
         });
         await db.SaveChangesAsync();
 
-        var handler = new SettingsHandler(db);
+        var handler = CreateHandler(db);
         await handler.DeleteCategoryAsync(51);
 
         Assert.Equal(0, await db.WorkCategories.CountAsync());
@@ -95,7 +99,7 @@ public class SettingsHandlerTests
         });
         await db.SaveChangesAsync();
 
-        var handler = new SettingsHandler(db);
+        var handler = CreateHandler(db);
         await handler.UpdateCategoryAsync(new WorkCategory
         {
             Id = 52, Name = "New Name", Color = "#fff", Icon = "bi-check", IsSystem = false
@@ -112,7 +116,7 @@ public class SettingsHandlerTests
         db.UserSettings.Add(new UserSettings { Id = 1, VaultRootPath = @"C:\ExistingVault", DailyNotesSubfolder = @"Notes\Daily" });
         await db.SaveChangesAsync();
 
-        var handler = new SettingsHandler(db);
+        var handler = CreateHandler(db);
         var settings = await handler.GetAsync();
 
         Assert.Equal(@"C:\ExistingVault", settings.VaultRootPath);
@@ -123,7 +127,7 @@ public class SettingsHandlerTests
     public async Task SaveAsync_PersistsDailyNotesSubfolder()
     {
         using var db = CreateDb();
-        var handler = new SettingsHandler(db);
+        var handler = CreateHandler(db);
         var settings = await handler.GetAsync();
         settings.DailyNotesSubfolder = @"MyNotes\Daily";
 
@@ -137,7 +141,7 @@ public class SettingsHandlerTests
     public async Task SaveAsync_NewSettings_AddsToDatabase()
     {
         using var db = CreateDb();
-        var handler = new SettingsHandler(db);
+        var handler = CreateHandler(db);
         var settings = new UserSettings { Id = 1, VaultRootPath = @"C:\NewVault" };
 
         await handler.SaveAsync(settings);
@@ -156,7 +160,7 @@ public class SettingsHandlerTests
         );
         await db.SaveChangesAsync();
 
-        var handler = new SettingsHandler(db);
+        var handler = CreateHandler(db);
         var cats = await handler.GetCategoriesAsync();
 
         Assert.Equal(3, cats.Count);
@@ -169,7 +173,7 @@ public class SettingsHandlerTests
     public async Task AddCategoryAsync_EmptyName_ThrowsArgumentException()
     {
         using var db = CreateDb();
-        var handler = new SettingsHandler(db);
+        var handler = CreateHandler(db);
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
             handler.AddCategoryAsync("", "#000", "bi-x"));
@@ -179,7 +183,7 @@ public class SettingsHandlerTests
     public async Task AddCategoryAsync_WhitespaceName_ThrowsArgumentException()
     {
         using var db = CreateDb();
-        var handler = new SettingsHandler(db);
+        var handler = CreateHandler(db);
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
             handler.AddCategoryAsync("   ", "#000", "bi-x"));
@@ -189,7 +193,7 @@ public class SettingsHandlerTests
     public async Task AddCategoryAsync_TrimsNameWhitespace()
     {
         using var db = CreateDb();
-        var handler = new SettingsHandler(db);
+        var handler = CreateHandler(db);
 
         var cat = await handler.AddCategoryAsync("  Meetings  ", "#000", "bi-calendar");
 
@@ -203,7 +207,7 @@ public class SettingsHandlerTests
         db.WorkCategories.Add(new WorkCategory { Id = 60, Name = "Valid", Color = "#000", Icon = "bi-x", IsSystem = false });
         await db.SaveChangesAsync();
 
-        var handler = new SettingsHandler(db);
+        var handler = CreateHandler(db);
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
             handler.UpdateCategoryAsync(new WorkCategory { Id = 60, Name = "", Color = "#000", Icon = "bi-x" }));
@@ -213,7 +217,7 @@ public class SettingsHandlerTests
     public async Task UpdateCategoryAsync_NonExistentId_DoesNotThrow()
     {
         using var db = CreateDb();
-        var handler = new SettingsHandler(db);
+        var handler = CreateHandler(db);
 
         var ex = await Record.ExceptionAsync(() =>
             handler.UpdateCategoryAsync(new WorkCategory { Id = 999, Name = "Ghost", Color = "#000", Icon = "bi-x" }));
@@ -225,7 +229,7 @@ public class SettingsHandlerTests
     public async Task DeleteCategoryAsync_NonExistentId_DoesNotThrow()
     {
         using var db = CreateDb();
-        var handler = new SettingsHandler(db);
+        var handler = CreateHandler(db);
 
         var ex = await Record.ExceptionAsync(() => handler.DeleteCategoryAsync(999));
 

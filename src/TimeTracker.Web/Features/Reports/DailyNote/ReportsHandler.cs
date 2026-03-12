@@ -1,29 +1,23 @@
-using Microsoft.EntityFrameworkCore;
-using TimeTracker.Web.Data;
 using TimeTracker.Web.Data.Models;
+using TimeTracker.Web.Data.Repositories;
 using TimeTracker.Web.Features.Reports.AiUsage;
 
 namespace TimeTracker.Web.Features.Reports.DailyNote;
 
 public record ReportRange(DateOnly From, DateOnly To);
 
-public class ReportsHandler(AppDbContext db)
+public class ReportsHandler(ITimeEntryRepository timeEntryRepo, IJournalEntryRepository journalRepo)
 {
     public async Task<(List<TimeEntry> Entries, List<JournalEntry> Journal)> GetRangeDataAsync(ReportRange range)
     {
         var from = range.From.ToDateTime(TimeOnly.MinValue).ToUniversalTime();
         var to = range.To.ToDateTime(TimeOnly.MaxValue).ToUniversalTime();
 
-        var entries = await db.TimeEntries
-            .Include(e => e.WorkCategory)
-            .Where(e => e.StartTime >= from && e.StartTime <= to && e.EndTime != null)
-            .OrderBy(e => e.StartTime)
-            .ToListAsync();
+        var entries = await timeEntryRepo.GetByDateRangeAsync(from, to, includeCategory: true);
 
-        var journal = await db.JournalEntries
-            .Where(j => j.Date >= range.From && j.Date <= range.To)
+        var journal = (await journalRepo.GetFilteredAsync(from: range.From, to: range.To))
             .OrderBy(j => j.Date)
-            .ToListAsync();
+            .ToList();
 
         return (entries, journal);
     }
@@ -33,8 +27,9 @@ public class ReportsHandler(AppDbContext db)
         var from = range.From.ToDateTime(TimeOnly.MinValue).ToUniversalTime();
         var to = range.To.ToDateTime(TimeOnly.MaxValue).ToUniversalTime();
 
-        var items = await db.TimeEntries
-            .Where(e => e.AiUsed && e.StartTime >= from && e.StartTime <= to && e.EndTime != null)
+        var entries = await timeEntryRepo.GetByDateRangeAsync(from, to);
+        var items = entries
+            .Where(e => e.AiUsed)
             .Select(e => new AiUsageReportItem
             {
                 Id = e.Id,
@@ -45,8 +40,7 @@ public class ReportsHandler(AppDbContext db)
                 AiNotes = e.AiNotes,
                 ValueAdded = e.ValueAdded
             })
-            .OrderBy(e => e.StartTime)
-            .ToListAsync();
+            .ToList();
 
         return items
             .GroupBy(e => GetWeekStart(e.StartTime))
@@ -89,19 +83,15 @@ public class ReportsHandler(AppDbContext db)
             var existing = await File.ReadAllTextAsync(filePath);
             if (existing.Contains(sectionHeading))
             {
-                // Replace existing section
                 var idx = existing.IndexOf(sectionHeading, StringComparison.Ordinal);
                 var before = existing[..idx];
-                // Find next ## heading after our section, or end of file
                 var nextSection = existing.IndexOf("\n## ", idx + sectionHeading.Length, StringComparison.Ordinal);
                 var after = nextSection >= 0 ? existing[nextSection..] : string.Empty;
-                // Extract just our section from the new markdown (strip frontmatter)
                 var sectionOnly = ExtractSection(markdown, sectionHeading);
                 await File.WriteAllTextAsync(filePath, before + sectionOnly + after);
             }
             else
             {
-                // Append section only (no frontmatter) to existing file
                 var sectionOnly = ExtractSection(markdown, sectionHeading);
                 await File.AppendAllTextAsync(filePath, "\n" + sectionOnly);
             }
@@ -128,11 +118,6 @@ public class ReportsHandler(AppDbContext db)
         return date.AddDays(-diff);
     }
 
-    /// <summary>
-    /// Writes the AI usage weekly report markdown to a standalone file in the vault root.
-    /// File name: AI-Usage-Report-{from}-to-{to}.md
-    /// Returns the file path and whether an existing file was overwritten.
-    /// </summary>
     public async Task<(string Path, bool Overwritten)> PushAiUsageReportAsync(
         DateOnly from,
         DateOnly to,

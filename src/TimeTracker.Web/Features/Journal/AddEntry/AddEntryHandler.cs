@@ -1,5 +1,5 @@
-using TimeTracker.Web.Data;
 using TimeTracker.Web.Data.Models;
+using TimeTracker.Web.Data.Repositories;
 
 namespace TimeTracker.Web.Features.Journal.AddEntry;
 
@@ -10,7 +10,7 @@ public record AddJournalEntryInput(
     DateOnly? Date = null,
     int? LinkedTimeEntryId = null);
 
-public class AddEntryHandler(AppDbContext db)
+public class AddEntryHandler(IJournalEntryRepository journalRepo)
 {
     public async Task<JournalEntry> HandleAsync(AddJournalEntryInput input)
     {
@@ -25,8 +25,6 @@ public class AddEntryHandler(AppDbContext db)
             LinkedTimeEntryId = input.LinkedTimeEntryId,
             CreatedAt = DateTime.UtcNow
         };
-        db.JournalEntries.Add(entry);
-        await db.SaveChangesAsync();
-        return entry;
+        return await journalRepo.AddAsync(entry);
     }
 }

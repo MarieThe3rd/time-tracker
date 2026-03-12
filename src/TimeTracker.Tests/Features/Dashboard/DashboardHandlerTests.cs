@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TimeTracker.Web.Data;
 using TimeTracker.Web.Data.Models;
+using TimeTracker.Web.Data.Repositories.Sql;
 using TimeTracker.Web.Features.Dashboard;
 
 namespace TimeTracker.Tests.Features.Dashboard;
@@ -15,13 +16,14 @@ public class DashboardHandlerTests
         return new AppDbContext(options);
     }
 
+    private static DashboardHandler CreateHandler(AppDbContext db) =>
+        new DashboardHandler(new SqlTimeEntryRepository(db), new SqlJournalEntryRepository(db));
+
     [Fact]
     public async Task HandleAsync_NoEntries_ReturnsZeroTotals()
     {
         using var db = CreateDb();
-        var handler = new DashboardHandler(db);
-
-        var data = await handler.HandleAsync();
+        var data = await CreateHandler(db).HandleAsync();
 
         Assert.Equal(TimeSpan.Zero, data.TotalToday);
         Assert.Equal(0, data.AvgProductivity);
@@ -40,7 +42,7 @@ public class DashboardHandlerTests
         );
         await db.SaveChangesAsync();
 
-        var data = await new DashboardHandler(db).HandleAsync();
+        var data = await CreateHandler(db).HandleAsync();
 
         Assert.Equal(3, data.TotalToday.TotalHours);
     }
@@ -53,7 +55,7 @@ public class DashboardHandlerTests
         db.TimeEntries.Add(new TimeEntry { StartTime = yesterday, EndTime = yesterday.AddHours(3) });
         await db.SaveChangesAsync();
 
-        var data = await new DashboardHandler(db).HandleAsync();
+        var data = await CreateHandler(db).HandleAsync();
 
         Assert.Equal(TimeSpan.Zero, data.TotalToday);
     }
@@ -69,7 +71,7 @@ public class DashboardHandlerTests
         );
         await db.SaveChangesAsync();
 
-        var data = await new DashboardHandler(db).HandleAsync();
+        var data = await CreateHandler(db).HandleAsync();
 
         Assert.Equal(3.0, data.AvgProductivity);
     }
@@ -87,7 +89,7 @@ public class DashboardHandlerTests
         );
         await db.SaveChangesAsync();
 
-        var data = await new DashboardHandler(db).HandleAsync();
+        var data = await CreateHandler(db).HandleAsync();
 
         Assert.Single(data.CategoryStats);
         Assert.Equal("Dev", data.CategoryStats[0].Name);
@@ -111,7 +113,7 @@ public class DashboardHandlerTests
         }
         await db.SaveChangesAsync();
 
-        var data = await new DashboardHandler(db).HandleAsync();
+        var data = await CreateHandler(db).HandleAsync();
 
         Assert.Equal(3, data.RecentJournal.Count);
         Assert.Equal("Entry 5", data.RecentJournal[0].Title);
@@ -133,7 +135,7 @@ public class DashboardHandlerTests
         );
         await db.SaveChangesAsync();
 
-        var data = await new DashboardHandler(db).HandleAsync();
+        var data = await CreateHandler(db).HandleAsync();
 
         Assert.Equal("Beta", data.CategoryStats[0].Name);
         Assert.Equal("Alpha", data.CategoryStats[1].Name);
@@ -154,7 +156,7 @@ public class DashboardHandlerTests
         }
         await db.SaveChangesAsync();
 
-        var data = await new DashboardHandler(db).HandleAsync();
+        var data = await CreateHandler(db).HandleAsync();
 
         Assert.Equal(5, data.RecentEntries.Count);
     }
@@ -170,7 +172,7 @@ public class DashboardHandlerTests
         );
         await db.SaveChangesAsync();
 
-        var data = await new DashboardHandler(db).HandleAsync();
+        var data = await CreateHandler(db).HandleAsync();
 
         Assert.True(data.RecentEntries[0].StartTime > data.RecentEntries[1].StartTime);
     }
@@ -186,7 +188,7 @@ public class DashboardHandlerTests
         );
         await db.SaveChangesAsync();
 
-        var data = await new DashboardHandler(db).HandleAsync();
+        var data = await CreateHandler(db).HandleAsync();
 
         // Only the rated entry counts — avg should be 4, not 2
         Assert.Equal(4.0, data.AvgProductivity);
@@ -225,7 +227,7 @@ public class DashboardHandlerTests
 
         await db.SaveChangesAsync();
 
-        var data = await new DashboardHandler(db).HandleAsync();
+        var data = await CreateHandler(db).HandleAsync();
 
         Assert.Equal(mondayIsToday ? 2 : 1, data.AiSummary.TodayAssistedEntries);
         Assert.Equal(mondayIsToday ? 60 : 20, data.AiSummary.TodayTimeSavedMinutes);

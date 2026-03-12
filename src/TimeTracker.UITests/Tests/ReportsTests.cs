@@ -180,12 +180,11 @@ public class ReportsTests(AppFixture app)
 
         var cssClass = await reportsPage.AiInsightsTab.GetAttributeAsync("class");
         var showsEmptyState = await reportsPage.AiEmptyState.IsVisibleAsync();
-        var showsWeeklySummary = await reportsPage.AiWeeklySummaryCard.IsVisibleAsync();
-        var showsChart = await reportsPage.AiUsageChart.IsVisibleAsync();
+        var showsAiSavingsSummary = await reportsPage.AiSavingsSummaryCard.IsVisibleAsync();
 
         Assert.Contains("active", cssClass);
-        Assert.True(showsEmptyState || showsWeeklySummary);
-        Assert.True(showsEmptyState || showsChart);
+        Assert.True(showsEmptyState || showsAiSavingsSummary,
+            "Expected either the empty state or the AI Savings Summary card to be visible.");
     }
 
     [Fact]
@@ -224,7 +223,7 @@ public class ReportsTests(AppFixture app)
     }
 
     [Fact]
-    public async Task ReportsPage_AiInsights_ChartShowsActualVsProjectedMinutes()
+    public async Task ReportsPage_AiInsights_ShowsAiSavingsSummaryWhenAiEntriesExist()
     {
         var page = await app.NewPageAsync();
         var timerPage = new TimerPage(page);
@@ -238,7 +237,7 @@ public class ReportsTests(AppFixture app)
         await timerPage.SaveManualEntryAsync(
             start,
             end,
-            "AI chart semantics",
+            "AI savings summary test",
             "Faster first draft",
             isBreak: false,
             aiUsed: true,
@@ -250,15 +249,56 @@ public class ReportsTests(AppFixture app)
         await reportsPage.AiInsightsTab.ClickAsync();
         await reportsPage.WaitForBlazorAsync();
 
-        var labels = await reportsPage.GetAiChartDatasetLabelsAsync();
-        Assert.Contains("Actual Time Spent (min)", labels);
-        Assert.Contains("Projected Without AI (min)", labels);
+        Assert.True(await reportsPage.AiSavingsSummaryCard.IsVisibleAsync(),
+            "Expected 'AI Savings Summary' card header to be visible.");
+        Assert.True(await reportsPage.AiSavingsText.IsVisibleAsync(),
+            "Expected 'saved using AI' text to be visible.");
+    }
 
-        var spent = await reportsPage.GetAiChartDatasetDataAsync(0);
-        var projected = await reportsPage.GetAiChartDatasetDataAsync(1);
+    // Wave 1 regression tests
 
-        Assert.NotEmpty(spent);
-        Assert.NotEmpty(projected);
-        Assert.True(projected[0] > spent[0]);
+    [Fact]
+    public async Task ReportsPage_AiInsightsTab_HasNoChartCanvas()
+    {
+        var page = await app.NewPageAsync();
+        var reportsPage = new ReportsPage(page);
+        await reportsPage.GotoAsync();
+
+        await reportsPage.AiInsightsTab.ClickAsync();
+        await reportsPage.WaitForBlazorAsync();
+
+        // Wave 1: aiUsageChart canvas was removed in favour of the AI Savings Summary card
+        Assert.Equal(0, await reportsPage.AiUsageChart.CountAsync());
+    }
+
+    [Fact]
+    public async Task ReportsPage_AiInsightsTab_ShowsAiSavingsSummaryCardWhenAiEntriesExist()
+    {
+        var page = await app.NewPageAsync();
+        var timerPage = new TimerPage(page);
+        await timerPage.GotoAsync();
+        await timerPage.ShowManualEntryAsync();
+
+        var today = DateTime.Today;
+        var start = today.AddHours(16).ToString("yyyy-MM-ddTHH:mm");
+        var end = today.AddHours(17).ToString("yyyy-MM-ddTHH:mm");
+
+        await timerPage.SaveManualEntryAsync(
+            start,
+            end,
+            "AI Savings card check",
+            "Validated card presence",
+            isBreak: false,
+            aiUsed: true,
+            aiTimeSavedMinutes: 20,
+            aiNotes: "Wave 1 check.");
+
+        var reportsPage = new ReportsPage(page);
+        await reportsPage.GotoAsync();
+        await reportsPage.AiInsightsTab.ClickAsync();
+        await reportsPage.WaitForBlazorAsync();
+
+        Assert.True(await reportsPage.AiSavingsSummaryCard.IsVisibleAsync());
+        Assert.True(await reportsPage.AiSavingsText.IsVisibleAsync());
     }
 }

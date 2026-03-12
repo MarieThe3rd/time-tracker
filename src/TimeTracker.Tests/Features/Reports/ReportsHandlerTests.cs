@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TimeTracker.Web.Data;
 using TimeTracker.Web.Data.Models;
+using TimeTracker.Web.Data.Repositories.Sql;
 using TimeTracker.Web.Features.Reports.AiUsage;
 using TimeTracker.Web.Features.Reports.DailyNote;
 
@@ -15,6 +16,9 @@ public class ReportsHandlerTests
             .Options;
         return new AppDbContext(options);
     }
+
+    private static ReportsHandler CreateHandler(AppDbContext db) =>
+        new ReportsHandler(new SqlTimeEntryRepository(db), new SqlJournalEntryRepository(db));
 
     [Fact]
     public async Task GetRangeDataAsync_ReturnsEntriesInRange()
@@ -37,7 +41,7 @@ public class ReportsHandlerTests
         );
         await db.SaveChangesAsync();
 
-        var handler = new ReportsHandler(db);
+        var handler = CreateHandler(db);
         var (entries, _) = await handler.GetRangeDataAsync(new ReportRange(from, to));
 
         Assert.Single(entries);
@@ -54,7 +58,7 @@ public class ReportsHandlerTests
         });
         await db.SaveChangesAsync();
 
-        var handler = new ReportsHandler(db);
+        var handler = CreateHandler(db);
         var (entries, _) = await handler.GetRangeDataAsync(
             new ReportRange(new DateOnly(2026, 3, 1), new DateOnly(2026, 3, 7)));
 
@@ -71,7 +75,7 @@ public class ReportsHandlerTests
         );
         await db.SaveChangesAsync();
 
-        var handler = new ReportsHandler(db);
+        var handler = CreateHandler(db);
         var (_, journal) = await handler.GetRangeDataAsync(
             new ReportRange(new DateOnly(2026, 3, 1), new DateOnly(2026, 3, 7)));
 
@@ -89,7 +93,7 @@ public class ReportsHandlerTests
         );
         await db.SaveChangesAsync();
 
-        var handler = new ReportsHandler(db);
+        var handler = CreateHandler(db);
         var (entries, _) = await handler.GetRangeDataAsync(new ReportRange(new DateOnly(2026, 3, 1), new DateOnly(2026, 3, 7)));
 
         Assert.True(entries[0].StartTime < entries[1].StartTime);
@@ -105,7 +109,7 @@ public class ReportsHandlerTests
         );
         await db.SaveChangesAsync();
 
-        var handler = new ReportsHandler(db);
+        var handler = CreateHandler(db);
         var (_, journal) = await handler.GetRangeDataAsync(new ReportRange(new DateOnly(2026, 3, 1), new DateOnly(2026, 3, 7)));
 
         Assert.Equal("Earlier", journal[0].Title);
@@ -116,7 +120,7 @@ public class ReportsHandlerTests
     public async Task GetRangeDataAsync_EmptyDatabase_ReturnsBothEmpty()
     {
         using var db = CreateDb();
-        var handler = new ReportsHandler(db);
+        var handler = CreateHandler(db);
 
         var (entries, journal) = await handler.GetRangeDataAsync(new ReportRange(new DateOnly(2026, 3, 1), new DateOnly(2026, 3, 7)));
 
@@ -149,7 +153,7 @@ public class ReportsHandlerTests
             });
         await db.SaveChangesAsync();
 
-        var handler = new ReportsHandler(db);
+        var handler = CreateHandler(db);
 
         var weeks = await handler.GetWeeklyAiUsageAsync(new ReportRange(new DateOnly(2026, 3, 1), new DateOnly(2026, 3, 7)));
 
@@ -184,7 +188,7 @@ public class ReportsHandlerTests
             });
         await db.SaveChangesAsync();
 
-        var handler = new ReportsHandler(db);
+        var handler = CreateHandler(db);
 
         var weeks = await handler.GetWeeklyAiUsageAsync(new ReportRange(new DateOnly(2026, 3, 1), new DateOnly(2026, 3, 7)));
 
@@ -212,7 +216,7 @@ public class ReportsHandlerTests
             });
         await db.SaveChangesAsync();
 
-        var handler = new ReportsHandler(db);
+        var handler = CreateHandler(db);
         var weeks = await handler.GetWeeklyAiUsageAsync(new ReportRange(new DateOnly(2026, 3, 1), new DateOnly(2026, 3, 14)));
 
         Assert.Equal(2, weeks.Count);

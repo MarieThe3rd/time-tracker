@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TimeTracker.Web.Data;
 using TimeTracker.Web.Data.Models;
+using TimeTracker.Web.Data.Repositories.Sql;
 using TimeTracker.Web.Features.Journal.ListEntries;
 
 namespace TimeTracker.Tests.Features.Journal;
@@ -31,7 +32,7 @@ public class ListEntriesHandlerTests
     public async Task HandleAsync_NoFilter_ReturnsAll()
     {
         using var db = await SeedAsync();
-        var handler = new ListEntriesHandler(db);
+        var handler = new ListEntriesHandler(new SqlJournalEntryRepository(db));
 
         var results = await handler.HandleAsync(new JournalFilter());
 
@@ -42,7 +43,7 @@ public class ListEntriesHandlerTests
     public async Task HandleAsync_FilterByType_ReturnsMatchingOnly()
     {
         using var db = await SeedAsync();
-        var handler = new ListEntriesHandler(db);
+        var handler = new ListEntriesHandler(new SqlJournalEntryRepository(db));
 
         var results = await handler.HandleAsync(new JournalFilter(Type: JournalEntryType.Success));
 
@@ -54,7 +55,7 @@ public class ListEntriesHandlerTests
     public async Task HandleAsync_FilterByDateRange_ReturnsMatchingOnly()
     {
         using var db = await SeedAsync();
-        var handler = new ListEntriesHandler(db);
+        var handler = new ListEntriesHandler(new SqlJournalEntryRepository(db));
 
         var results = await handler.HandleAsync(new JournalFilter(
             From: new DateOnly(2026, 3, 2),
@@ -68,7 +69,7 @@ public class ListEntriesHandlerTests
     public async Task HandleAsync_FromAfterTo_ThrowsArgumentException()
     {
         using var db = await SeedAsync();
-        var handler = new ListEntriesHandler(db);
+        var handler = new ListEntriesHandler(new SqlJournalEntryRepository(db));
 
         await Assert.ThrowsAsync<ArgumentException>(() => handler.HandleAsync(new JournalFilter(
             From: new DateOnly(2026, 3, 5),
@@ -79,7 +80,7 @@ public class ListEntriesHandlerTests
     public async Task HandleAsync_CombinedTypeAndDateFilter_ReturnsMatchingOnly()
     {
         using var db = await SeedAsync();
-        var handler = new ListEntriesHandler(db);
+        var handler = new ListEntriesHandler(new SqlJournalEntryRepository(db));
 
         // Only Success entries from Mar 1-2 (Win 1 is Success on Mar 1; Challenge on Mar 2 is not Success)
         var results = await handler.HandleAsync(new JournalFilter(
@@ -95,7 +96,7 @@ public class ListEntriesHandlerTests
     public async Task HandleAsync_NoEntriesMatchFilter_ReturnsEmpty()
     {
         using var db = await SeedAsync();
-        var handler = new ListEntriesHandler(db);
+        var handler = new ListEntriesHandler(new SqlJournalEntryRepository(db));
 
         var results = await handler.HandleAsync(new JournalFilter(
             From: new DateOnly(2030, 1, 1),
@@ -108,7 +109,7 @@ public class ListEntriesHandlerTests
     public async Task HandleAsync_ResultsOrderedByDateDescending()
     {
         using var db = await SeedAsync();
-        var handler = new ListEntriesHandler(db);
+        var handler = new ListEntriesHandler(new SqlJournalEntryRepository(db));
 
         var results = await handler.HandleAsync(new JournalFilter());
 
@@ -129,7 +130,7 @@ public class ListEntriesHandlerTests
             new JournalEntry { Date = date, Type = JournalEntryType.Success, Title = "Second added", Body = "", CreatedAt = newer }
         );
         await db.SaveChangesAsync();
-        var handler = new ListEntriesHandler(db);
+        var handler = new ListEntriesHandler(new SqlJournalEntryRepository(db));
 
         var results = await handler.HandleAsync(new JournalFilter());
 

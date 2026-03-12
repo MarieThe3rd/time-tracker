@@ -1,16 +1,13 @@
-using TimeTracker.Web.Data;
 using TimeTracker.Web.Data.Models;
+using TimeTracker.Web.Data.Repositories;
 
 namespace TimeTracker.Web.Features.Timer;
 
-public class StopTimerHandler(AppDbContext db, RunningTimerService timerService)
+public class StopTimerHandler(ITimeEntryRepository timeEntryRepo, RunningTimerService timerService)
 {
-    private readonly AppDbContext _db = db;
-    private readonly RunningTimerService _timerService = timerService;
-
     public async Task<TimeEntry> HandleAsync()
     {
-        var (startedAt, categoryId, description) = _timerService.Stop();
+        var (startedAt, categoryId, description) = timerService.Stop();
 
         var entry = new TimeEntry
         {
@@ -20,8 +17,6 @@ public class StopTimerHandler(AppDbContext db, RunningTimerService timerService)
             Description = description
         };
 
-        _db.TimeEntries.Add(entry);
-        await _db.SaveChangesAsync();
-        return entry;
+        return await timeEntryRepo.AddAsync(entry);
     }
 }

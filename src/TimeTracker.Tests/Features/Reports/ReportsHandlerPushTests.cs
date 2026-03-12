@@ -31,7 +31,10 @@ public class ReportsHandlerPushTests : IDisposable
         var options = new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<TimeTracker.Web.Data.AppDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        return new ReportsHandler(new TimeTracker.Web.Data.AppDbContext(options));
+        var db = new TimeTracker.Web.Data.AppDbContext(options);
+        return new ReportsHandler(
+            new TimeTracker.Web.Data.Repositories.Sql.SqlTimeEntryRepository(db),
+            new TimeTracker.Web.Data.Repositories.Sql.SqlJournalEntryRepository(db));
     }
 
     [Fact]

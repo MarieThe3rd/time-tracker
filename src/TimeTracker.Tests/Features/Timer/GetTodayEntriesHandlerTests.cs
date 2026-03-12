@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TimeTracker.Web.Data;
 using TimeTracker.Web.Data.Models;
+using TimeTracker.Web.Data.Repositories.Sql;
 using TimeTracker.Web.Features.Timer;
 
 namespace TimeTracker.Tests.Features.Timer;
@@ -29,7 +30,7 @@ public class GetTodayEntriesHandlerTests
         );
         await db.SaveChangesAsync();
 
-        var handler = new GetTodayEntriesHandler(db);
+        var handler = new GetTodayEntriesHandler(new SqlTimeEntryRepository(db));
         var entries = await handler.HandleAsync();
 
         Assert.Single(entries);
@@ -48,7 +49,7 @@ public class GetTodayEntriesHandlerTests
         );
         await db.SaveChangesAsync();
 
-        var handler = new GetTodayEntriesHandler(db);
+        var handler = new GetTodayEntriesHandler(new SqlTimeEntryRepository(db));
         var entries = await handler.HandleAsync();
 
         Assert.Equal(2, entries.Count);

@@ -1,6 +1,5 @@
-using Microsoft.EntityFrameworkCore;
-using TimeTracker.Web.Data;
 using TimeTracker.Web.Data.Models;
+using TimeTracker.Web.Data.Repositories;
 
 namespace TimeTracker.Web.Features.Timer;
 
@@ -17,10 +16,8 @@ public record UpdateTimeEntryInput(
     int? AiTimeSavedMinutes,
     string? AiNotes);
 
-public class UpdateTimeEntryHandler(AppDbContext db)
+public class UpdateTimeEntryHandler(ITimeEntryRepository timeEntryRepo)
 {
-  private readonly AppDbContext _db = db;
-
   public async Task<TimeEntry?> HandleAsync(UpdateTimeEntryInput input)
   {
     if (input.EndTime <= input.StartTime)
@@ -44,7 +41,7 @@ public class UpdateTimeEntryHandler(AppDbContext db)
         throw new ArgumentException("AI notes are required when AI-Used is true.", nameof(input));
     }
 
-    var entry = await _db.TimeEntries.FirstOrDefaultAsync(e => e.Id == input.Id);
+    var entry = await timeEntryRepo.GetByIdAsync(input.Id);
     if (entry is null)
       return null;
 
@@ -59,7 +56,7 @@ public class UpdateTimeEntryHandler(AppDbContext db)
     entry.AiTimeSavedMinutes = input.AiUsed ? input.AiTimeSavedMinutes : null;
     entry.AiNotes = input.AiUsed ? input.AiNotes : null;
 
-    await _db.SaveChangesAsync();
+    await timeEntryRepo.UpdateAsync(entry);
     return entry;
   }
 }

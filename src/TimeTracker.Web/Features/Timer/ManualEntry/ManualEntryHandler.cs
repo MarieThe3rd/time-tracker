@@ -1,5 +1,5 @@
-using TimeTracker.Web.Data;
 using TimeTracker.Web.Data.Models;
+using TimeTracker.Web.Data.Repositories;
 
 namespace TimeTracker.Web.Features.Timer.ManualEntry;
 
@@ -15,10 +15,8 @@ public record ManualEntryInput(
     int? AiTimeSavedMinutes,
     string? AiNotes);
 
-public class ManualEntryHandler(AppDbContext db)
+public class ManualEntryHandler(ITimeEntryRepository timeEntryRepo)
 {
-    private readonly AppDbContext _db = db;
-
     public async Task<TimeEntry> HandleAsync(ManualEntryInput input)
     {
         if (input.EndTime <= input.StartTime)
@@ -56,8 +54,6 @@ public class ManualEntryHandler(AppDbContext db)
             AiNotes = input.AiUsed ? input.AiNotes : null
         };
 
-        _db.TimeEntries.Add(entry);
-        await _db.SaveChangesAsync();
-        return entry;
+        return await timeEntryRepo.AddAsync(entry);
     }
 }

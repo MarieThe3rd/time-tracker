@@ -155,26 +155,21 @@ public class TimerTests(AppFixture app)
     }
 
     [Fact]
-    public async Task TimerPage_ShowManualEntry_WithoutTodaysEntries_DefaultsStartTo8Am()
+    public async Task TimerPage_ShowManualEntry_DefaultsStartToNearestFifteenMinutes()
     {
         var page = await app.NewPageAsync();
         var timerPage = new TimerPage(page);
         await timerPage.GotoAsync();
 
-        var hasNoEntriesMessage = await page.Locator("text=No entries yet today.").IsVisibleAsync();
-
         await timerPage.ShowManualEntryAsync();
         await timerPage.ManualStartInput.WaitForAsync();
 
         var startValue = await timerPage.ManualStartInput.InputValueAsync();
-        if (hasNoEntriesMessage)
-        {
-            Assert.EndsWith("T08:00", startValue);
-            return;
-        }
+        Assert.NotEmpty(startValue);
 
         var minutePortion = startValue[^2..];
-        Assert.True(minutePortion is "00" or "30", $"Expected minute portion to be 00 or 30, got '{minutePortion}'.");
+        Assert.True(minutePortion is "00" or "15" or "30" or "45",
+            $"Expected start minute to be a multiple of 15 (00, 15, 30, or 45), got '{minutePortion}'.");
     }
 
     [Fact]
@@ -252,5 +247,81 @@ public class TimerTests(AppFixture app)
         await timerPage.StartEditEntryByDescriptionAsync("Entry after edit");
         Assert.Equal("Entry after edit", await timerPage.EditDescriptionInput.InputValueAsync());
         Assert.Equal("2", await timerPage.EditCategorySelect.InputValueAsync());
+    }
+
+    // Wave 1 regression tests
+
+    [Fact]
+    public async Task TimerPage_ElapsedDisplay_DoesNotHaveDisplaySixClass()
+    {
+        var page = await app.NewPageAsync();
+        var timerPage = new TimerPage(page);
+        await timerPage.GotoAsync();
+
+        await timerPage.ElapsedDisplay.WaitForAsync();
+
+        // Regression guard: display-6 class was removed in Wave 1 (now fs-4 fw-bold font-monospace)
+        var oldStyleLocator = page.Locator(".display-6.font-monospace");
+        Assert.Equal(0, await oldStyleLocator.CountAsync());
+
+        // Confirm the new class is present
+        var classes = await timerPage.ElapsedDisplay.GetAttributeAsync("class");
+        Assert.Contains("fs-4", classes);
+        Assert.Contains("font-monospace", classes);
+    }
+
+    [Fact]
+    public async Task TimerPage_TimerStrip_ElapsedTimeHasFontMonoClass()
+    {
+        var page = await app.NewPageAsync();
+        var timerPage = new TimerPage(page);
+        await timerPage.GotoAsync();
+
+        await timerPage.StartTimerAsync("Strip font-mono test");
+
+        await timerPage.TimerStripElapsed.WaitForAsync(new() { State = Microsoft.Playwright.WaitForSelectorState.Visible });
+        var classes = await timerPage.TimerStripElapsed.GetAttributeAsync("class");
+        Assert.Contains("font-monospace", classes);
+        Assert.Contains("fs-6", classes);
+
+        await timerPage.StopTimerAsync();
+    }
+
+    [Fact]
+    public async Task TimerPage_ManualEntry_StartTimeIsPreFilled()
+    {
+        var page = await app.NewPageAsync();
+        var timerPage = new TimerPage(page);
+        await timerPage.GotoAsync();
+
+        await timerPage.ShowManualEntryAsync();
+        await timerPage.ManualStartInput.WaitForAsync();
+
+        var startValue = await timerPage.ManualStartInput.InputValueAsync();
+        Assert.NotEmpty(startValue);
+        Assert.Matches(@"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}", startValue);
+    }
+
+    [Fact]
+    public async Task TimerPage_ManualEntry_EndTimeIsThirtyMinutesAfterStart()
+    {
+        var page = await app.NewPageAsync();
+        var timerPage = new TimerPage(page);
+        await timerPage.GotoAsync();
+
+        await timerPage.ShowManualEntryAsync();
+        await timerPage.ManualStartInput.WaitForAsync();
+
+        var startValue = await timerPage.ManualStartInput.InputValueAsync();
+        var endValue = await timerPage.ManualEndInput.InputValueAsync();
+
+        Assert.NotEmpty(startValue);
+        Assert.NotEmpty(endValue);
+
+        var start = DateTime.Parse(startValue);
+        var end = DateTime.Parse(endValue);
+        var diffMinutes = (end - start).TotalMinutes;
+
+        Assert.InRange(diffMinutes, 25, 35);
     }
 }

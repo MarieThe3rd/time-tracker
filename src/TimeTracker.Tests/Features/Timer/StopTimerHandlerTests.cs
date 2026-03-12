@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TimeTracker.Web.Data;
+using TimeTracker.Web.Data.Repositories.Sql;
 using TimeTracker.Web.Features.Timer;
 
 namespace TimeTracker.Tests.Features.Timer;
@@ -22,7 +23,7 @@ public class StopTimerHandlerTests
         timerService.Start(1, "Writing tests");
         await Task.Delay(50); // small delay so duration > 0
 
-        var handler = new StopTimerHandler(db, timerService);
+        var handler = new StopTimerHandler(new SqlTimeEntryRepository(db), timerService);
         var entry = await handler.HandleAsync();
 
         Assert.NotNull(entry);
@@ -39,7 +40,7 @@ public class StopTimerHandlerTests
         var timerService = new RunningTimerService();
         // Not started — Stop should still produce an entry without crashing
 
-        var handler = new StopTimerHandler(db, timerService);
+        var handler = new StopTimerHandler(new SqlTimeEntryRepository(db), timerService);
         var entry = await handler.HandleAsync();
 
         Assert.NotNull(entry);

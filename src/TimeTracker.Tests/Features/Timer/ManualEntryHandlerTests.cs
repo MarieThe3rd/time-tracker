@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TimeTracker.Web.Data;
+using TimeTracker.Web.Data.Repositories.Sql;
 using TimeTracker.Web.Features.Timer.ManualEntry;
 
 namespace TimeTracker.Tests.Features.Timer;
@@ -14,11 +15,14 @@ public class ManualEntryHandlerTests
         return new AppDbContext(options);
     }
 
+    private static ManualEntryHandler CreateHandler(AppDbContext db) =>
+        new ManualEntryHandler(new SqlTimeEntryRepository(db));
+
     [Fact]
     public async Task HandleAsync_ValidInput_SavesAndReturnsEntry()
     {
         using var db = CreateDb();
-        var handler = new ManualEntryHandler(db);
+        var handler = CreateHandler(db);
         var start = DateTime.UtcNow.AddHours(-2);
         var end = DateTime.UtcNow.AddHours(-1);
         var input = new ManualEntryInput(start, end, null, "Planning session", 4, "Planned sprint tasks", false, false, null, null);
@@ -38,7 +42,7 @@ public class ManualEntryHandlerTests
     public async Task HandleAsync_EndBeforeStart_ThrowsArgumentException()
     {
         using var db = CreateDb();
-        var handler = new ManualEntryHandler(db);
+        var handler = CreateHandler(db);
         var input = new ManualEntryInput(
             DateTime.UtcNow,
             DateTime.UtcNow.AddHours(-1), // end before start
@@ -51,7 +55,7 @@ public class ManualEntryHandlerTests
     public async Task HandleAsync_WithProductivityRating_PersistsRating()
     {
         using var db = CreateDb();
-        var handler = new ManualEntryHandler(db);
+        var handler = CreateHandler(db);
         var input = new ManualEntryInput(
             DateTime.UtcNow.AddHours(-1),
             DateTime.UtcNow,
@@ -66,7 +70,7 @@ public class ManualEntryHandlerTests
     public async Task HandleAsync_EndTimeEqualsStartTime_ThrowsArgumentException()
     {
         using var db = CreateDb();
-        var handler = new ManualEntryHandler(db);
+        var handler = CreateHandler(db);
         var time = DateTime.UtcNow;
         var input = new ManualEntryInput(time, time, null, null, null, null, false, false, null, null);
 
@@ -80,7 +84,7 @@ public class ManualEntryHandlerTests
     public async Task HandleAsync_ProductivityRatingOutOfRange_ThrowsArgumentOutOfRangeException(int rating)
     {
         using var db = CreateDb();
-        var handler = new ManualEntryHandler(db);
+        var handler = CreateHandler(db);
         var input = new ManualEntryInput(
             DateTime.UtcNow.AddHours(-1),
             DateTime.UtcNow,
@@ -93,7 +97,7 @@ public class ManualEntryHandlerTests
     public async Task HandleAsync_NullProductivityRating_SavesSuccessfully()
     {
         using var db = CreateDb();
-        var handler = new ManualEntryHandler(db);
+        var handler = CreateHandler(db);
         var input = new ManualEntryInput(
             DateTime.UtcNow.AddHours(-1),
             DateTime.UtcNow,
@@ -108,7 +112,7 @@ public class ManualEntryHandlerTests
     public async Task HandleAsync_AllNullOptionalFields_SavesSuccessfully()
     {
         using var db = CreateDb();
-        var handler = new ManualEntryHandler(db);
+        var handler = CreateHandler(db);
         var input = new ManualEntryInput(
             DateTime.UtcNow.AddHours(-1),
             DateTime.UtcNow,
@@ -126,7 +130,7 @@ public class ManualEntryHandlerTests
     public async Task HandleAsync_BreakEntryWithProductivity_ThrowsArgumentException()
     {
         using var db = CreateDb();
-        var handler = new ManualEntryHandler(db);
+        var handler = CreateHandler(db);
         var input = new ManualEntryInput(
             DateTime.UtcNow.AddHours(-1),
             DateTime.UtcNow,
@@ -139,7 +143,7 @@ public class ManualEntryHandlerTests
     public async Task HandleAsync_AiUsedWithoutDetails_ThrowsArgumentException()
     {
         using var db = CreateDb();
-        var handler = new ManualEntryHandler(db);
+        var handler = CreateHandler(db);
         var input = new ManualEntryInput(
             DateTime.UtcNow.AddHours(-1),
             DateTime.UtcNow,
@@ -152,7 +156,7 @@ public class ManualEntryHandlerTests
     public async Task HandleAsync_AiUsedWithDetails_PersistsAiFields()
     {
         using var db = CreateDb();
-        var handler = new ManualEntryHandler(db);
+        var handler = CreateHandler(db);
         var input = new ManualEntryInput(
             DateTime.UtcNow.AddHours(-1),
             DateTime.UtcNow,

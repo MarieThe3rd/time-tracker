@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TimeTracker.Web.Data;
 using TimeTracker.Web.Data.Models;
+using TimeTracker.Web.Data.Repositories.Sql;
 using TimeTracker.Web.Features.Journal.ListEntries;
 
 namespace TimeTracker.Tests.Features.Journal;
@@ -30,7 +31,7 @@ public class DeleteJournalEntryHandlerTests
         });
         await db.SaveChangesAsync();
 
-        var handler = new DeleteJournalEntryHandler(db);
+        var handler = new DeleteJournalEntryHandler(new SqlJournalEntryRepository(db));
         await handler.HandleAsync(1);
 
         Assert.Equal(0, await db.JournalEntries.CountAsync());
@@ -51,7 +52,7 @@ public class DeleteJournalEntryHandlerTests
         });
         await db.SaveChangesAsync();
 
-        var handler = new DeleteJournalEntryHandler(db);
+        var handler = new DeleteJournalEntryHandler(new SqlJournalEntryRepository(db));
         await handler.HandleAsync(10);
 
         var found = await db.JournalEntries.FindAsync(10);
@@ -62,7 +63,7 @@ public class DeleteJournalEntryHandlerTests
     public async Task HandleAsync_NonExistentId_DoesNotThrow()
     {
         using var db = CreateDb();
-        var handler = new DeleteJournalEntryHandler(db);
+        var handler = new DeleteJournalEntryHandler(new SqlJournalEntryRepository(db));
 
         var ex = await Record.ExceptionAsync(() => handler.HandleAsync(999));
 
@@ -79,7 +80,7 @@ public class DeleteJournalEntryHandlerTests
         );
         await db.SaveChangesAsync();
 
-        var handler = new DeleteJournalEntryHandler(db);
+        var handler = new DeleteJournalEntryHandler(new SqlJournalEntryRepository(db));
         await handler.HandleAsync(21);
 
         Assert.Equal(1, await db.JournalEntries.CountAsync());

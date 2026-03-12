@@ -32,7 +32,10 @@ public class ReportsHandlerAiUsagePushTests : IDisposable
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        return new ReportsHandler(new AppDbContext(options));
+        var db = new AppDbContext(options);
+        return new ReportsHandler(
+            new TimeTracker.Web.Data.Repositories.Sql.SqlTimeEntryRepository(db),
+            new TimeTracker.Web.Data.Repositories.Sql.SqlJournalEntryRepository(db));
     }
 
     // -------------------------------------------------------------------------

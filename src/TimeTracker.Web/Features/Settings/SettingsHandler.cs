@@ -1,38 +1,22 @@
-using Microsoft.EntityFrameworkCore;
-using TimeTracker.Web.Data;
 using TimeTracker.Web.Data.Models;
+using TimeTracker.Web.Data.Repositories;
 
 namespace TimeTracker.Web.Features.Settings;
 
-public class SettingsHandler(AppDbContext db)
+public class SettingsHandler(IUserSettingsRepository settingsRepo, IWorkCategoryRepository categoryRepo)
 {
-    public async Task<UserSettings> GetAsync() =>
-        await db.UserSettings.FirstOrDefaultAsync() ?? new UserSettings { Id = 1 };
+    public Task<UserSettings> GetAsync() => settingsRepo.GetAsync();
 
-    public async Task SaveAsync(UserSettings settings)
-    {
-        var existing = await db.UserSettings.FindAsync(settings.Id);
-        if (existing is null)
-            db.UserSettings.Add(settings);
-        else
-        {
-            existing.VaultRootPath = settings.VaultRootPath;
-            existing.DailyNotesSubfolder = settings.DailyNotesSubfolder;
-        }
-        await db.SaveChangesAsync();
-    }
+    public Task SaveAsync(UserSettings settings) => settingsRepo.UpdateAsync(settings);
 
-    public async Task<List<WorkCategory>> GetCategoriesAsync() =>
-        await db.WorkCategories.OrderBy(c => c.Name).ToListAsync();
+    public Task<List<WorkCategory>> GetCategoriesAsync() => categoryRepo.GetAllAsync();
 
     public async Task<WorkCategory> AddCategoryAsync(string name, string color, string icon)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Category name cannot be empty.", nameof(name));
         var cat = new WorkCategory { Name = name.Trim(), Color = color, Icon = icon };
-        db.WorkCategories.Add(cat);
-        await db.SaveChangesAsync();
-        return cat;
+        return await categoryRepo.AddAsync(cat);
     }
 
     public async Task UpdateCategoryAsync(WorkCategory category)
@@ -40,21 +24,13 @@ public class SettingsHandler(AppDbContext db)
         if (string.IsNullOrWhiteSpace(category.Name))
             throw new ArgumentException("Category name cannot be empty.", nameof(category));
 
-        var existing = await db.WorkCategories.FindAsync(category.Id);
+        var existing = await categoryRepo.GetByIdAsync(category.Id);
         if (existing is null) return;
         existing.Name = category.Name.Trim();
         existing.Color = category.Color;
         existing.Icon = category.Icon;
-        await db.SaveChangesAsync();
+        await categoryRepo.UpdateAsync(existing);
     }
 
-    public async Task DeleteCategoryAsync(int id)
-    {
-        var cat = await db.WorkCategories.FindAsync(id);
-        if (cat is not null && !cat.IsSystem)
-        {
-            db.WorkCategories.Remove(cat);
-            await db.SaveChangesAsync();
-        }
-    }
+    public Task DeleteCategoryAsync(int id) => categoryRepo.DeleteAsync(id);
 }

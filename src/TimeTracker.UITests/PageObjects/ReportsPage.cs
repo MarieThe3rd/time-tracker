@@ -25,6 +25,8 @@ public class ReportsPage(IPage page) : PageObjectBase(page)
     public ILocator AiEmptyState => Page.Locator("text=No AI-assisted entries in this range.");
     public ILocator AiUsageChart => Page.Locator("#aiUsageChart");
     public ILocator AiWeeklySummaryCard => Page.Locator(".card-header", new() { HasText = "Weekly AI Summary" });
+    public ILocator AiSavingsSummaryCard => Page.Locator(".card-header", new() { HasText = "AI Savings Summary" });
+    public ILocator AiSavingsText => Page.Locator("text=saved using AI");
 
     // Markdown preview
     public ILocator MarkdownPreview => Page.Locator("pre").First;

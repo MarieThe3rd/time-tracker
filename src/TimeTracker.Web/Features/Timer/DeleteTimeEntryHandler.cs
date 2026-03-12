@@ -1,19 +1,8 @@
-using Microsoft.EntityFrameworkCore;
-using TimeTracker.Web.Data;
+using TimeTracker.Web.Data.Repositories;
 
 namespace TimeTracker.Web.Features.Timer;
 
-public class DeleteTimeEntryHandler(AppDbContext db)
+public class DeleteTimeEntryHandler(ITimeEntryRepository timeEntryRepo)
 {
-    private readonly AppDbContext _db = db;
-
-    public async Task HandleAsync(int id)
-    {
-        var entry = await _db.TimeEntries.FindAsync(id);
-        if (entry is not null)
-        {
-            _db.TimeEntries.Remove(entry);
-            await _db.SaveChangesAsync();
-        }
-    }
+    public Task HandleAsync(int id) => timeEntryRepo.DeleteAsync(id);
 }

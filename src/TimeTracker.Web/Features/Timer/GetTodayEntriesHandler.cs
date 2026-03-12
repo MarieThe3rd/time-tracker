@@ -1,23 +1,10 @@
-using Microsoft.EntityFrameworkCore;
-using TimeTracker.Web.Data;
 using TimeTracker.Web.Data.Models;
+using TimeTracker.Web.Data.Repositories;
 
 namespace TimeTracker.Web.Features.Timer;
 
-public class GetTodayEntriesHandler(AppDbContext db)
+public class GetTodayEntriesHandler(ITimeEntryRepository timeEntryRepo)
 {
-    private readonly AppDbContext _db = db;
-
-    public async Task<List<TimeEntry>> HandleAsync()
-    {
-        var todayLocal = DateOnly.FromDateTime(DateTime.Now);
-        var startUtc = todayLocal.ToDateTime(TimeOnly.MinValue, DateTimeKind.Local).ToUniversalTime();
-        var endUtc = todayLocal.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Local).ToUniversalTime();
-
-        return await _db.TimeEntries
-            .Include(e => e.WorkCategory)
-            .Where(e => e.StartTime >= startUtc && e.StartTime <= endUtc)
-            .OrderByDescending(e => e.StartTime)
-            .ToListAsync();
-    }
+    public Task<List<TimeEntry>> HandleAsync() =>
+        timeEntryRepo.GetTodayAsync(includeCategory: true);
 }

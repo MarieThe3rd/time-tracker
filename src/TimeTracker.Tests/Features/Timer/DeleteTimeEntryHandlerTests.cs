@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TimeTracker.Web.Data;
 using TimeTracker.Web.Data.Models;
+using TimeTracker.Web.Data.Repositories.Sql;
 using TimeTracker.Web.Features.Timer;
 
 namespace TimeTracker.Tests.Features.Timer;
@@ -27,7 +28,7 @@ public class DeleteTimeEntryHandlerTests
         });
         await db.SaveChangesAsync();
 
-        var handler = new DeleteTimeEntryHandler(db);
+        var handler = new DeleteTimeEntryHandler(new SqlTimeEntryRepository(db));
         await handler.HandleAsync(1);
 
         Assert.Equal(0, await db.TimeEntries.CountAsync());
@@ -45,7 +46,7 @@ public class DeleteTimeEntryHandlerTests
         });
         await db.SaveChangesAsync();
 
-        var handler = new DeleteTimeEntryHandler(db);
+        var handler = new DeleteTimeEntryHandler(new SqlTimeEntryRepository(db));
         await handler.HandleAsync(10);
 
         var found = await db.TimeEntries.FindAsync(10);
@@ -56,7 +57,7 @@ public class DeleteTimeEntryHandlerTests
     public async Task HandleAsync_NonExistentId_DoesNotThrow()
     {
         using var db = CreateDb();
-        var handler = new DeleteTimeEntryHandler(db);
+        var handler = new DeleteTimeEntryHandler(new SqlTimeEntryRepository(db));
 
         var ex = await Record.ExceptionAsync(() => handler.HandleAsync(999));
 
@@ -75,7 +76,7 @@ public class DeleteTimeEntryHandlerTests
         });
         await db.SaveChangesAsync();
 
-        var handler = new DeleteTimeEntryHandler(db);
+        var handler = new DeleteTimeEntryHandler(new SqlTimeEntryRepository(db));
         await handler.HandleAsync(999);
 
         Assert.Equal(1, await db.TimeEntries.CountAsync());

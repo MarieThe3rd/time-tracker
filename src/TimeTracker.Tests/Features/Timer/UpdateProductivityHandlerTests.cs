@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TimeTracker.Web.Data;
 using TimeTracker.Web.Data.Models;
+using TimeTracker.Web.Data.Repositories.Sql;
 using TimeTracker.Web.Features.Timer;
 
 namespace TimeTracker.Tests.Features.Timer;
@@ -30,7 +31,7 @@ public class UpdateProductivityHandlerTests
         });
         await db.SaveChangesAsync();
 
-        var handler = new UpdateProductivityHandler(db);
+        var handler = new UpdateProductivityHandler(new SqlTimeEntryRepository(db));
         await handler.HandleAsync(1, rating);
 
         var entry = await db.TimeEntries.FindAsync(1);
@@ -53,7 +54,7 @@ public class UpdateProductivityHandlerTests
         });
         await db.SaveChangesAsync();
 
-        var handler = new UpdateProductivityHandler(db);
+        var handler = new UpdateProductivityHandler(new SqlTimeEntryRepository(db));
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => handler.HandleAsync(1, rating));
     }
@@ -62,7 +63,7 @@ public class UpdateProductivityHandlerTests
     public async Task HandleAsync_NonExistentEntry_DoesNotThrow()
     {
         using var db = CreateDb();
-        var handler = new UpdateProductivityHandler(db);
+        var handler = new UpdateProductivityHandler(new SqlTimeEntryRepository(db));
 
         var ex = await Record.ExceptionAsync(() => handler.HandleAsync(999, 3));
 
@@ -81,7 +82,7 @@ public class UpdateProductivityHandlerTests
         });
         await db.SaveChangesAsync();
 
-        var handler = new UpdateProductivityHandler(db);
+        var handler = new UpdateProductivityHandler(new SqlTimeEntryRepository(db));
         await handler.HandleAsync(2, 4);
 
         // Reload from DB to verify persistence
@@ -103,7 +104,7 @@ public class UpdateProductivityHandlerTests
         });
         await db.SaveChangesAsync();
 
-        var handler = new UpdateProductivityHandler(db);
+        var handler = new UpdateProductivityHandler(new SqlTimeEntryRepository(db));
         await handler.HandleAsync(3, 5);
 
         var entry = await db.TimeEntries.FindAsync(3);
@@ -123,7 +124,7 @@ public class UpdateProductivityHandlerTests
         });
         await db.SaveChangesAsync();
 
-        var handler = new UpdateProductivityHandler(db);
+        var handler = new UpdateProductivityHandler(new SqlTimeEntryRepository(db));
         await handler.HandleAsync(4, 5);
 
         var entry = await db.TimeEntries.FindAsync(4);
