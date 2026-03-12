@@ -284,9 +284,10 @@
                             dailyJournal,
                             dailyEntries.Where(e => e.ProductivityRating.HasValue && !e.IsBreak)
                                 .Select(e => (double)e.ProductivityRating!.Value)
-                                .DefaultIfEmpty(0).Average()),
-                        "weekly" => MarkdownService.BuildWeeklySummary(_from, _to, _entries, _journal),
-                        "review" => MarkdownService.BuildReviewExport(_from, _to, _journal, _entries),
+                                .DefaultIfEmpty(0).Average(),
+                            _tasks),
+                        "weekly" => MarkdownService.BuildWeeklySummary(_from, _to, _entries, _journal, _tasks),
+                        "review" => MarkdownService.BuildReviewExport(_from, _to, _journal, _entries, _tasks),
                         _ => string.Empty
                     };
 
@@ -600,6 +601,7 @@
     private List<JournalEntry> _journal = [];
     private List<AiUsageWeeklyItem> _aiWeeks = [];
     private List<JournalType> _journalTypes = [];
+    private List<TaskItem> _tasks = [];
     private UserSettings _settings = new();
     private string _tab = "summary";
     private string _preset = "week";
@@ -660,6 +662,7 @@
         var range = new ReportRange(_from, _to);
         (_entries, _journal) = await Handler.GetRangeDataAsync(range);
         _aiWeeks = await Handler.GetWeeklyAiUsageAsync(range);
+        _tasks = await Handler.GetTasksForRangeAsync(range);
         if (_from == _to)
         {
             _dailyDate = _from;

@@ -18,7 +18,10 @@ public class ReportsHandlerTests
     }
 
     private static ReportsHandler CreateHandler(AppDbContext db) =>
-        new ReportsHandler(new SqlTimeEntryRepository(db), new SqlJournalEntryRepository(db));
+        new ReportsHandler(
+            new SqlTimeEntryRepository(db),
+            new SqlJournalEntryRepository(db),
+            new TimeTracker.Web.Data.Repositories.Sql.SqlTaskItemRepository(db));
 
     [Fact]
     public async Task GetRangeDataAsync_ReturnsEntriesInRange()

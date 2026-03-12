@@ -9,7 +9,8 @@ public class MarkdownExportService
         DateOnly date,
         List<TimeEntry> entries,
         List<JournalEntry> journalEntries,
-        double avgProductivity)
+        double avgProductivity,
+        List<TaskItem>? tasks = null)
     {
         var totalHours = entries
             .Where(e => e.Duration.HasValue)
@@ -107,6 +108,8 @@ public class MarkdownExportService
             }
         }
 
+        AppendTasksSection(sb, tasks);
+
         return sb.ToString();
     }
 
@@ -114,7 +117,8 @@ public class MarkdownExportService
         DateOnly from,
         DateOnly to,
         List<TimeEntry> entries,
-        List<JournalEntry> journalEntries)
+        List<JournalEntry> journalEntries,
+        List<TaskItem>? tasks = null)
     {
         var totalHours = entries
             .Where(e => e.Duration.HasValue)
@@ -210,6 +214,8 @@ public class MarkdownExportService
             sb.AppendLine();
         }
 
+        AppendTasksSection(sb, tasks);
+
         return sb.ToString();
     }
 
@@ -217,7 +223,8 @@ public class MarkdownExportService
         DateOnly from,
         DateOnly to,
         List<JournalEntry> journalEntries,
-        List<TimeEntry> entries)
+        List<TimeEntry> entries,
+        List<TaskItem>? tasks = null)
     {
         var aiEntries = entries
             .Where(e => e.AiUsed)
@@ -255,6 +262,7 @@ public class MarkdownExportService
         WriteSection("Challenges", 1, "⚡");
         WriteSection("Learnings", 2, "🎓");
         AppendAiUsageSummary(sb, aiEntries);
+        AppendTasksSection(sb, tasks);
 
         return sb.ToString();
     }
@@ -294,6 +302,67 @@ public class MarkdownExportService
         }
 
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Appends a ## Tasks section grouped by status using Obsidian-friendly checkboxes.
+    /// No-ops when <paramref name="tasks"/> is null or empty.
+    /// </summary>
+    private static void AppendTasksSection(System.Text.StringBuilder sb, List<TaskItem>? tasks)
+    {
+        if (tasks is not { Count: > 0 })
+            return;
+
+        sb.AppendLine("## Tasks");
+        sb.AppendLine();
+
+        var groups = new[]
+        {
+            (Status: TaskItemStatus.NotStarted, Heading: "📋 Not Started"),
+            (Status: TaskItemStatus.InProgress,  Heading: "🔄 In Progress"),
+            (Status: TaskItemStatus.Blocked,     Heading: "🚫 Blocked"),
+            (Status: TaskItemStatus.Done,        Heading: "✅ Done"),
+        };
+
+        foreach (var (status, heading) in groups)
+        {
+            var group = tasks.Where(t => t.Status == status).OrderBy(t => t.DueDate).ThenBy(t => t.Title).ToList();
+            if (group.Count == 0) continue;
+
+            sb.AppendLine($"### {heading}");
+            sb.AppendLine();
+
+            foreach (var task in group)
+            {
+                var checkbox = status == TaskItemStatus.Done ? "- [x]" : "- [ ]";
+                var meta = BuildTaskMeta(task);
+                sb.AppendLine($"{checkbox} {task.Title}{meta}");
+            }
+
+            sb.AppendLine();
+        }
+    }
+
+    private static string BuildTaskMeta(TaskItem task)
+    {
+        var parts = new System.Text.StringBuilder();
+
+        if (task.DueDate.HasValue)
+            parts.Append($"  📅 {task.DueDate.Value:yyyy-MM-dd}");
+
+        var priorityLabel = task.Priority switch
+        {
+            TaskItemPriority.Low      => "🔵 Low",
+            TaskItemPriority.Medium   => "🟡 Medium",
+            TaskItemPriority.High     => "🔴 High",
+            TaskItemPriority.Critical => "⛔ Critical",
+            _                        => string.Empty
+        };
+
+        if (!string.IsNullOrEmpty(priorityLabel))
+            parts.Append($" {priorityLabel}");
+
+        return parts.ToString();
     }
 
     /// <summary>

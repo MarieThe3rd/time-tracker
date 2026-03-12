@@ -35,7 +35,8 @@ public class ReportsHandlerAiUsagePushTests : IDisposable
         var db = new AppDbContext(options);
         return new ReportsHandler(
             new TimeTracker.Web.Data.Repositories.Sql.SqlTimeEntryRepository(db),
-            new TimeTracker.Web.Data.Repositories.Sql.SqlJournalEntryRepository(db));
+            new TimeTracker.Web.Data.Repositories.Sql.SqlJournalEntryRepository(db),
+            new TimeTracker.Web.Data.Repositories.Sql.SqlTaskItemRepository(db));
     }
 
     // -------------------------------------------------------------------------

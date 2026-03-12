@@ -473,5 +473,111 @@ public class MarkdownExportServiceTests
         Assert.NotNull(dataRow);
         Assert.DoesNotContain("search | refactoring", dataRow);
     }
+
+    // ── Tasks section tests ─────────────────────────────────────────────────────
+
+    private static List<TaskItem> SampleTasks() =>
+    [
+        new TaskItem { Id = 1, Title = "Fix login bug",   Status = TaskItemStatus.NotStarted, Priority = TaskItemPriority.High,     DueDate = new DateOnly(2026, 3, 15), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+        new TaskItem { Id = 2, Title = "Refactor auth",   Status = TaskItemStatus.InProgress,  Priority = TaskItemPriority.Medium,   DueDate = null,                      CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+        new TaskItem { Id = 3, Title = "Deploy to prod",  Status = TaskItemStatus.Blocked,     Priority = TaskItemPriority.Critical, DueDate = new DateOnly(2026, 3, 10), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+        new TaskItem { Id = 4, Title = "Write unit tests",Status = TaskItemStatus.Done,        Priority = TaskItemPriority.Low,      DueDate = null,                      CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+    ];
+
+    [Fact]
+    public void BuildDailyNote_WithTasks_ContainsTasksSection()
+    {
+        var md = _svc.BuildDailyNote(new DateOnly(2026, 3, 9), [], [], 0, SampleTasks());
+        Assert.Contains("## Tasks", md);
+    }
+
+    [Fact]
+    public void BuildWeeklySummary_WithTasks_ContainsTasksSection()
+    {
+        var md = _svc.BuildWeeklySummary(new DateOnly(2026, 3, 2), new DateOnly(2026, 3, 8), [], [], SampleTasks());
+        Assert.Contains("## Tasks", md);
+    }
+
+    [Fact]
+    public void BuildReviewExport_WithTasks_ContainsTasksSection()
+    {
+        var md = _svc.BuildReviewExport(new DateOnly(2026, 3, 1), new DateOnly(2026, 3, 31), [], [], SampleTasks());
+        Assert.Contains("## Tasks", md);
+    }
+
+    [Fact]
+    public void BuildWeeklySummary_Tasks_GroupedByStatus()
+    {
+        var md = _svc.BuildWeeklySummary(new DateOnly(2026, 3, 2), new DateOnly(2026, 3, 8), [], [], SampleTasks());
+        Assert.Contains("### 📋 Not Started", md);
+        Assert.Contains("### 🔄 In Progress", md);
+        Assert.Contains("### 🚫 Blocked", md);
+        Assert.Contains("### ✅ Done", md);
+    }
+
+    [Fact]
+    public void BuildWeeklySummary_Tasks_DoneItemUsesCheckedCheckbox()
+    {
+        var md = _svc.BuildWeeklySummary(new DateOnly(2026, 3, 2), new DateOnly(2026, 3, 8), [], [], SampleTasks());
+        Assert.Contains("- [x] Write unit tests", md);
+    }
+
+    [Fact]
+    public void BuildWeeklySummary_Tasks_IncompleteItemUsesUncheckedCheckbox()
+    {
+        var md = _svc.BuildWeeklySummary(new DateOnly(2026, 3, 2), new DateOnly(2026, 3, 8), [], [], SampleTasks());
+        Assert.Contains("- [ ] Fix login bug", md);
+        Assert.Contains("- [ ] Refactor auth", md);
+        Assert.Contains("- [ ] Deploy to prod", md);
+    }
+
+    [Fact]
+    public void BuildWeeklySummary_Tasks_DueDateIncludedWithCalendarEmoji()
+    {
+        var md = _svc.BuildWeeklySummary(new DateOnly(2026, 3, 2), new DateOnly(2026, 3, 8), [], [], SampleTasks());
+        Assert.Contains("📅 2026-03-15", md);
+        Assert.Contains("📅 2026-03-10", md);
+    }
+
+    [Fact]
+    public void BuildWeeklySummary_Tasks_PriorityIncludedWithEmoji()
+    {
+        var md = _svc.BuildWeeklySummary(new DateOnly(2026, 3, 2), new DateOnly(2026, 3, 8), [], [], SampleTasks());
+        Assert.Contains("🔴 High", md);
+        Assert.Contains("🟡 Medium", md);
+        Assert.Contains("⛔ Critical", md);
+        Assert.Contains("🔵 Low", md);
+    }
+
+    [Fact]
+    public void BuildWeeklySummary_Tasks_NullOrEmpty_OmitsSection()
+    {
+        var mdNull = _svc.BuildWeeklySummary(new DateOnly(2026, 3, 2), new DateOnly(2026, 3, 8), [], [], null);
+        var mdEmpty = _svc.BuildWeeklySummary(new DateOnly(2026, 3, 2), new DateOnly(2026, 3, 8), [], [], []);
+        Assert.DoesNotContain("## Tasks", mdNull);
+        Assert.DoesNotContain("## Tasks", mdEmpty);
+    }
+
+    [Fact]
+    public void BuildWeeklySummary_Tasks_StatusWithNoItems_OmitsStatusHeading()
+    {
+        var onlyDone = new List<TaskItem>
+        {
+            new() { Id = 1, Title = "Done task", Status = TaskItemStatus.Done, Priority = TaskItemPriority.Low, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
+        };
+        var md = _svc.BuildWeeklySummary(new DateOnly(2026, 3, 2), new DateOnly(2026, 3, 8), [], [], onlyDone);
+        Assert.Contains("## Tasks", md);
+        Assert.Contains("### ✅ Done", md);
+        Assert.DoesNotContain("### 📋 Not Started", md);
+        Assert.DoesNotContain("### 🔄 In Progress", md);
+        Assert.DoesNotContain("### 🚫 Blocked", md);
+    }
+
+    [Fact]
+    public void BuildDailyNote_WithoutTasks_NoTasksSection()
+    {
+        var md = _svc.BuildDailyNote(new DateOnly(2026, 3, 9), [], [], 0);
+        Assert.DoesNotContain("## Tasks", md);
+    }
 }
 

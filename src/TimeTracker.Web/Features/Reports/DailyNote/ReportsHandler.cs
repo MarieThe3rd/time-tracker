@@ -6,7 +6,7 @@ namespace TimeTracker.Web.Features.Reports.DailyNote;
 
 public record ReportRange(DateOnly From, DateOnly To);
 
-public class ReportsHandler(ITimeEntryRepository timeEntryRepo, IJournalEntryRepository journalRepo)
+public class ReportsHandler(ITimeEntryRepository timeEntryRepo, IJournalEntryRepository journalRepo, ITaskItemRepository taskRepo)
 {
     public async Task<(List<TimeEntry> Entries, List<JournalEntry> Journal)> GetRangeDataAsync(ReportRange range)
     {
@@ -20,6 +20,18 @@ public class ReportsHandler(ITimeEntryRepository timeEntryRepo, IJournalEntryRep
             .ToList();
 
         return (entries, journal);
+    }
+
+    public async Task<List<TaskItem>> GetTasksForRangeAsync(ReportRange range)
+    {
+        var from = range.From.ToDateTime(TimeOnly.MinValue).ToUniversalTime();
+        var to = range.To.ToDateTime(TimeOnly.MaxValue).ToUniversalTime();
+
+        var all = await taskRepo.GetFilteredAsync(includeCategory: false);
+        return all
+            .Where(t => (t.CreatedAt >= from && t.CreatedAt <= to)
+                     || (t.UpdatedAt >= from && t.UpdatedAt <= to))
+            .ToList();
     }
 
     public async Task<List<AiUsageWeeklyItem>> GetWeeklyAiUsageAsync(ReportRange range)
