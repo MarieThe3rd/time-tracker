@@ -3,7 +3,7 @@ using TimeTracker.Web.Data.Repositories;
 
 namespace TimeTracker.Web.Features.Journal.ManageCategories;
 
-public class ManageJournalCategoriesHandler(IJournalCategoryRepository categoryRepo)
+public class ManageJournalCategoriesHandler(IJournalCategoryRepository categoryRepo, IJournalEntryRepository entryRepo)
 {
     public Task<List<JournalCategory>> GetAllAsync() => categoryRepo.GetAllAsync();
 
@@ -29,5 +29,15 @@ public class ManageJournalCategoriesHandler(IJournalCategoryRepository categoryR
         await categoryRepo.UpdateAsync(existing);
     }
 
-    public Task DeleteAsync(int id) => categoryRepo.DeleteAsync(id);
+    public async Task DeleteAsync(int id)
+    {
+        var category = await categoryRepo.GetByIdAsync(id);
+        if (category is null) return;
+
+        if (category.IsSystem)
+            throw new InvalidOperationException("System categories cannot be deleted.");
+
+        await entryRepo.NullCategoryAsync(id);
+        await categoryRepo.DeleteAsync(id);
+    }
 }

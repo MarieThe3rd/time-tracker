@@ -10,4 +10,5 @@ public interface IJournalEntryRepository
     Task<JournalEntry> AddAsync(JournalEntry entry);
     Task UpdateAsync(JournalEntry entry);
     Task DeleteAsync(int id);
+    Task NullCategoryAsync(int categoryId);
 }

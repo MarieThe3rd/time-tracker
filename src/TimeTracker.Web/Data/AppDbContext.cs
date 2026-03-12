@@ -52,5 +52,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             new JournalType { Id = 2, Name = "Learning",  Color = "#0dcaf0", Icon = "bi-mortarboard",     IsSystem = true },
             new JournalType { Id = 3, Name = "Success",   Color = "#198754", Icon = "bi-trophy",          IsSystem = true }
         );
+
+        modelBuilder.Entity<JournalCategory>().HasData(
+            new JournalCategory { Id = 1, Name = "Work",     Color = "#0d6efd", Icon = "bi-briefcase", IsSystem = true },
+            new JournalCategory { Id = 2, Name = "Personal", Color = "#6f42c1", Icon = "bi-person",    IsSystem = true },
+            new JournalCategory { Id = 3, Name = "Learning", Color = "#198754", Icon = "bi-book",      IsSystem = true },
+            new JournalCategory { Id = 4, Name = "Health",   Color = "#dc3545", Icon = "bi-heart",     IsSystem = true }
+        );
     }
 }

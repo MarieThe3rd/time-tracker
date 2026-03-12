@@ -1,3 +1,4 @@
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using TimeTracker.Web.Data;
 using TimeTracker.Web.Data.Models;
@@ -16,8 +17,22 @@ public class ManageJournalCategoriesHandlerTests
         return new AppDbContext(options);
     }
 
+    // SQLite is required for tests that call NullCategoryAsync (uses ExecuteUpdateAsync,
+    // which the InMemory provider does not support).
+    private static (AppDbContext db, SqliteConnection conn) CreateSqliteDb()
+    {
+        var conn = new SqliteConnection("DataSource=:memory:");
+        conn.Open();
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseSqlite(conn)
+            .Options;
+        var db = new AppDbContext(options);
+        db.Database.EnsureCreated();
+        return (db, conn);
+    }
+
     private static ManageJournalCategoriesHandler CreateHandler(AppDbContext db) =>
-        new ManageJournalCategoriesHandler(new SqlJournalCategoryRepository(db));
+        new ManageJournalCategoriesHandler(new SqlJournalCategoryRepository(db), new SqlJournalEntryRepository(db));
 
     [Fact]
     public async Task GetAll_returns_all_categories()
@@ -126,16 +141,78 @@ public class ManageJournalCategoriesHandlerTests
     [Fact]
     public async Task Delete_delegates_to_repository()
     {
-        using var db = CreateDb();
-        db.JournalCategories.Add(new JournalCategory
+        var (db, conn) = CreateSqliteDb();
+        using (conn) using (db)
         {
-            Id = 30, Name = "ToDelete", Color = "#000", Icon = "bi-trash"
-        });
-        await db.SaveChangesAsync();
+            db.JournalCategories.Add(new JournalCategory
+            {
+                Id = 30, Name = "ToDelete", Color = "#000", Icon = "bi-trash", IsSystem = false
+            });
+            await db.SaveChangesAsync();
 
-        var handler = CreateHandler(db);
-        await handler.DeleteAsync(30);
+            var handler = CreateHandler(db);
+            await handler.DeleteAsync(30);
 
-        Assert.Equal(0, await db.JournalCategories.CountAsync());
+            Assert.Null(await db.JournalCategories.FindAsync(30));
+        }
+    }
+
+    [Fact]
+    public async Task Delete_system_category_throws_InvalidOperationException()
+    {
+        var (db, conn) = CreateSqliteDb();
+        using (conn) using (db)
+        {
+            // Seed provides Id=1 "Work" with IsSystem=true — use it directly.
+            var handler = CreateHandler(db);
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() => handler.DeleteAsync(1));
+            Assert.NotNull(await db.JournalCategories.FindAsync(1));
+        }
+    }
+
+    [Fact]
+    public async Task Delete_nulls_out_entries_referencing_category()
+    {
+        var (db, conn) = CreateSqliteDb();
+        using (conn) using (db)
+        {
+            // Add a non-system category beyond the 4 seeded system ones.
+            db.JournalCategories.Add(new JournalCategory { Id = 10, Name = "Custom", Color = "#fff", Icon = "bi-tag", IsSystem = false });
+            // JournalTypeId=1 exists in seed data.
+            var entry = new JournalEntry
+            {
+                JournalTypeId = 1,
+                JournalCategoryId = 10,
+                Title = "Entry with category",
+                Body = "",
+                Date = new DateOnly(2026, 1, 1),
+                CreatedAt = DateTime.UtcNow
+            };
+            db.JournalEntries.Add(entry);
+            await db.SaveChangesAsync();
+
+            var handler = CreateHandler(db);
+            await handler.DeleteAsync(10);
+
+            db.ChangeTracker.Clear();
+            var fromDb = await db.JournalEntries.FindAsync(entry.Id);
+            Assert.Null(fromDb!.JournalCategoryId);
+            Assert.Null(await db.JournalCategories.FindAsync(10));
+        }
+    }
+
+    [Fact]
+    public async Task Delete_with_nonexistent_id_is_noop_with_cascade()
+    {
+        var (db, conn) = CreateSqliteDb();
+        using (conn) using (db)
+        {
+            var handler = CreateHandler(db);
+
+            var ex = await Record.ExceptionAsync(() => handler.DeleteAsync(999));
+
+            Assert.Null(ex);
+        }
     }
 }

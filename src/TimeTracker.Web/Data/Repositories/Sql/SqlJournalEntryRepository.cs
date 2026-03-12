@@ -63,4 +63,9 @@ public class SqlJournalEntryRepository(AppDbContext db) : IJournalEntryRepositor
             await db.SaveChangesAsync();
         }
     }
+
+    public async Task NullCategoryAsync(int categoryId)
+        => await db.JournalEntries
+            .Where(e => e.JournalCategoryId == categoryId)
+            .ExecuteUpdateAsync(s => s.SetProperty(e => e.JournalCategoryId, (int?)null));
 }

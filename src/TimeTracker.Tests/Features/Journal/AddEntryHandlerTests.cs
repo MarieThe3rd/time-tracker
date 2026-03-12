@@ -17,7 +17,7 @@ public class AddEntryHandlerTests
     }
 
     private static AddEntryHandler CreateHandler(AppDbContext db) =>
-        new AddEntryHandler(new SqlJournalEntryRepository(db));
+        new AddEntryHandler(new SqlJournalEntryRepository(db), new SqlJournalCategoryRepository(db));
 
     [Fact]
     public async Task HandleAsync_ValidInput_SavesEntry()
@@ -146,6 +146,9 @@ public class AddEntryHandlerTests
     public async Task HandleAsync_JournalCategoryId_Persisted()
     {
         using var db = CreateDb();
+        db.JournalCategories.Add(new JournalCategory { Id = 7, Name = "Work", Color = "#fff", Icon = "bi-briefcase" });
+        await db.SaveChangesAsync();
+
         var handler = CreateHandler(db);
         var input = new AddJournalEntryInput(JournalTypeId: 3, "Categorized win", "", JournalCategoryId: 7);
 

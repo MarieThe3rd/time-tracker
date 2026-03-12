@@ -19,7 +19,7 @@ public class UpdateJournalEntryHandlerTests
     }
 
     private static UpdateJournalEntryHandler CreateHandler(AppDbContext db) =>
-        new UpdateJournalEntryHandler(new SqlJournalEntryRepository(db));
+        new UpdateJournalEntryHandler(new SqlJournalEntryRepository(db), new SqlJournalCategoryRepository(db));
 
     private static async Task<JournalEntry> SeedEntryAsync(AppDbContext db, int journalTypeId = 3)
     {
@@ -150,6 +150,9 @@ public class UpdateJournalEntryHandlerTests
     public async Task HandleAsync_UpdatesJournalCategoryId()
     {
         using var db = CreateDb();
+        db.JournalCategories.Add(new JournalCategory { Id = 5, Name = "Focus", Color = "#fff", Icon = "bi-tag" });
+        await db.SaveChangesAsync();
+
         var entry = await SeedEntryAsync(db);
         var handler = CreateHandler(db);
 

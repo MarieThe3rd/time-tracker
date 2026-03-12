@@ -11,17 +11,22 @@ public record AddJournalEntryInput(
     int? LinkedTimeEntryId = null,
     int? JournalCategoryId = null);
 
-public class AddEntryHandler(IJournalEntryRepository journalRepo)
+public class AddEntryHandler(IJournalEntryRepository journalRepo, IJournalCategoryRepository categoryRepo)
 {
     public async Task<JournalEntry> HandleAsync(AddJournalEntryInput input)
     {
         if (string.IsNullOrWhiteSpace(input.Title))
             throw new ArgumentException("Title cannot be empty.", nameof(input));
+
+        int? resolvedCategoryId = input.JournalCategoryId;
+        if (resolvedCategoryId.HasValue && await categoryRepo.GetByIdAsync(resolvedCategoryId.Value) is null)
+            resolvedCategoryId = null;
+
         var entry = new JournalEntry
         {
             Date = input.Date ?? DateOnly.FromDateTime(DateTime.Today),
             JournalTypeId = input.JournalTypeId,
-            JournalCategoryId = input.JournalCategoryId,
+            JournalCategoryId = resolvedCategoryId,
             Title = input.Title.Trim(),
             Body = input.Body.Trim(),
             LinkedTimeEntryId = input.LinkedTimeEntryId,

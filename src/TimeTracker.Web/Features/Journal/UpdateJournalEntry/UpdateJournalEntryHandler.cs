@@ -12,7 +12,7 @@ public record UpdateJournalEntryInput(
     int? LinkedTimeEntryId = null,
     int? JournalCategoryId = null);
 
-public class UpdateJournalEntryHandler(IJournalEntryRepository journalRepo)
+public class UpdateJournalEntryHandler(IJournalEntryRepository journalRepo, IJournalCategoryRepository categoryRepo)
 {
     public async Task<JournalEntry> HandleAsync(UpdateJournalEntryInput input)
     {
@@ -22,8 +22,12 @@ public class UpdateJournalEntryHandler(IJournalEntryRepository journalRepo)
         var entry = await journalRepo.GetByIdAsync(input.Id)
             ?? throw new KeyNotFoundException($"Journal entry {input.Id} not found.");
 
+        int? resolvedCategoryId = input.JournalCategoryId;
+        if (resolvedCategoryId.HasValue && await categoryRepo.GetByIdAsync(resolvedCategoryId.Value) is null)
+            resolvedCategoryId = null;
+
         entry.JournalTypeId    = input.JournalTypeId;
-        entry.JournalCategoryId = input.JournalCategoryId;
+        entry.JournalCategoryId = resolvedCategoryId;
         entry.Title            = input.Title.Trim();
         entry.Body             = input.Body.Trim();
         entry.Date             = input.Date;

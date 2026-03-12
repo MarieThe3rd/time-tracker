@@ -120,10 +120,21 @@
                             </span>
                             @if (_editingJournalCatId == cat.Id)
                             {
-                                <input class="form-control form-control-sm" style="max-width:160px" @bind="cat.Name" />
-                                <input type="color" class="form-control form-control-color form-control-sm" style="width:40px" @bind="cat.Color" />
-                                <button class="btn btn-sm btn-success" @onclick="() => SaveJournalCategory(cat)"><i class="bi bi-check"></i></button>
-                                <button class="btn btn-sm btn-outline-secondary" @onclick="() => _editingJournalCatId = null"><i class="bi bi-x"></i></button>
+                                <div class="d-flex flex-wrap gap-1 align-items-center flex-grow-1">
+                                    <input class="form-control form-control-sm" style="max-width:160px" @bind="cat.Name" />
+                                    <input type="color" class="form-control form-control-color form-control-sm" style="width:40px" @bind="cat.Color" />
+                                    @foreach (var icon in _journalIconOptions)
+                                    {
+                                        <button type="button"
+                                                class="btn btn-sm @(cat.Icon == icon ? "btn-primary" : "btn-outline-secondary")"
+                                                title="@icon"
+                                                @onclick="() => cat.Icon = icon">
+                                            <i class="bi @icon"></i>
+                                        </button>
+                                    }
+                                    <button class="btn btn-sm btn-success" @onclick="() => SaveJournalCategory(cat)"><i class="bi bi-check"></i></button>
+                                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => _editingJournalCatId = null"><i class="bi bi-x"></i></button>
+                                </div>
                             }
                             else
                             {
@@ -148,11 +159,20 @@
 
                 <!-- Add new journal category -->
                 <div class="p-3 border-top">
-                    <div class="d-flex gap-2 align-items-center">
+                    <div class="d-flex gap-2 align-items-center flex-wrap">
                         <input class="form-control form-control-sm" placeholder="New category name"
-                               @bind="_newJournalCatName" style="flex:1" />
+                               @bind="_newJournalCatName" style="flex:1; min-width:120px" />
                         <input type="color" class="form-control form-control-color form-control-sm"
                                style="width:40px" @bind="_newJournalCatColor" />
+                        @foreach (var icon in _journalIconOptions)
+                        {
+                            <button type="button"
+                                    class="btn btn-sm @(_newJournalCatIcon == icon ? "btn-primary" : "btn-outline-secondary")"
+                                    title="@icon"
+                                    @onclick="() => _newJournalCatIcon = icon">
+                                <i class="bi @icon"></i>
+                            </button>
+                        }
                         <button class="btn btn-sm btn-primary" @onclick="AddJournalCategory">
                             <i class="bi bi-plus-lg"></i>
                         </button>
@@ -180,7 +200,14 @@
     private int? _editingJournalCatId;
     private string _newJournalCatName = string.Empty;
     private string _newJournalCatColor = "#6c757d";
+    private string _newJournalCatIcon = "bi-tag";
     private string? _journalCatError;
+
+    private static readonly string[] _journalIconOptions =
+    [
+        "bi-tag", "bi-briefcase", "bi-person", "bi-book", "bi-heart", "bi-star",
+        "bi-house", "bi-lightning", "bi-globe", "bi-chat", "bi-award", "bi-gear"
+    ];
 
     protected override async Task OnInitializedAsync()
     {
@@ -230,9 +257,10 @@
             _journalCatError = "Name is required.";
             return;
         }
-        await JournalCategoryHandler.AddAsync(_newJournalCatName, _newJournalCatColor, "bi-tag");
+        await JournalCategoryHandler.AddAsync(_newJournalCatName, _newJournalCatColor, _newJournalCatIcon);
         _newJournalCatName = string.Empty;
         _newJournalCatColor = "#6c757d";
+        _newJournalCatIcon = "bi-tag";
         _journalCategories = await JournalCategoryHandler.GetAllAsync();
     }
 
