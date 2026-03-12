@@ -66,6 +66,20 @@
     </div>
 </div>
 
+<!-- Bulk action toolbar -->
+@if (_selectedTaskIds.Count > 0)
+{
+    <div class="d-flex align-items-center gap-3 mb-3 p-2 bg-light border rounded">
+        <span class="fw-semibold">@_selectedTaskIds.Count task@(_selectedTaskIds.Count == 1 ? "" : "s") selected</span>
+        <button id="bulk-mark-done" class="btn btn-sm btn-success" @onclick="BulkMarkDone">
+            <i class="bi bi-check2-all me-1"></i> Mark as Done
+        </button>
+        <button id="bulk-clear" class="btn btn-sm btn-outline-secondary" @onclick="ClearSelection">
+            <i class="bi bi-x me-1"></i> Clear selection
+        </button>
+    </div>
+}
+
 <!-- Task list -->
 @if (_loading)
 {
@@ -80,6 +94,12 @@ else if (_tasks.Count == 0)
 }
 else
 {
+    <div class="d-flex align-items-center gap-2 mb-2 px-1">
+        <input type="checkbox" id="select-all-tasks" class="form-check-input"
+               checked="@(_selectedTaskIds.Count == _tasks.Count)"
+               @onchange="ToggleSelectAll" />
+        <label for="select-all-tasks" class="form-check-label small fw-semibold">Select all</label>
+    </div>
     <div class="d-flex flex-column gap-2">
         @foreach (var task in _tasks)
         {
@@ -90,6 +110,10 @@ else
             <div data-testid="task-card" class="card shadow-sm @(task.Status == TaskItemStatus.Blocked ? "border-danger" : "")">
                 <div class="card-body py-2 px-3">
                     <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <input type="checkbox" id="select-task-@task.Id" class="form-check-input flex-shrink-0"
+                               checked="@_selectedTaskIds.Contains(task.Id)"
+                               @onchange="() => ToggleTaskSelection(task.Id)" />
+                        <label for="select-task-@task.Id" class="visually-hidden">Select @task.Title</label>
                         <span class="badge @PriorityBadge(task.Priority)">@task.Priority</span>
                         <span class="badge @StatusBadge(task.Status)">@FormatStatus(task.Status)</span>
 
@@ -268,6 +292,7 @@ else
     private List<TaskItem> _tasks = [];
     private List<WorkCategory> _categories = [];
     private bool _loading = true;
+    private HashSet<int> _selectedTaskIds = [];
 
     // Filters
     private string _filterStatus = string.Empty;
@@ -299,6 +324,7 @@ else
             WorkCategoryId: string.IsNullOrEmpty(_filterCategoryId) ? null : int.Parse(_filterCategoryId)
         );
         _tasks = await ListHandler.HandleAsync(filter);
+        _selectedTaskIds.Clear();
         _loading = false;
     }
 
@@ -373,6 +399,43 @@ else
             ));
         }
         CloseForm();
+        await Refresh();
+    }
+
+    private void ToggleTaskSelection(int taskId)
+    {
+        if (!_selectedTaskIds.Remove(taskId))
+            _selectedTaskIds.Add(taskId);
+    }
+
+    private void ToggleSelectAll()
+    {
+        if (_selectedTaskIds.Count == _tasks.Count)
+            _selectedTaskIds.Clear();
+        else
+            _selectedTaskIds = [.._tasks.Select(t => t.Id)];
+    }
+
+    private void ClearSelection() => _selectedTaskIds.Clear();
+
+    private async Task BulkMarkDone()
+    {
+        var selected = _tasks.Where(t => _selectedTaskIds.Contains(t.Id)).ToList();
+        foreach (var task in selected)
+        {
+            await UpdateHandler.HandleAsync(new UpdateTaskInput(
+                Id: task.Id,
+                Title: task.Title,
+                Description: task.Description,
+                Status: TaskItemStatus.Done,
+                Priority: task.Priority,
+                DueDate: task.DueDate,
+                AssignedBy: task.AssignedBy,
+                DeliverableTo: task.DeliverableTo,
+                WorkCategoryId: task.WorkCategoryId,
+                Notes: task.Notes
+            ));
+        }
         await Refresh();
     }
 
