@@ -56,9 +56,10 @@ else
         <h6 class="text-muted mt-3 mb-2">@group.Key.ToString("dddd, MMMM d, yyyy")</h6>
         @foreach (var entry in group)
         {
-            var entryIcon  = entry.JournalType?.Icon  ?? "bi-journal";
-            var entryColor = entry.JournalType?.Color ?? "#6c757d";
-            var entryName  = entry.JournalType?.Name  ?? entry.JournalTypeId.ToString();
+            var jt = _journalTypes.FirstOrDefault(t => t.Id == entry.JournalTypeId);
+            var entryIcon  = jt?.Icon  ?? "bi-journal";
+            var entryColor = jt?.Color ?? "#6c757d";
+            var entryName  = jt?.Name  ?? entry.JournalTypeId.ToString();
             <div class="card shadow-sm mb-2">
                 <div class="card-body py-2">
                     <div class="d-flex align-items-start gap-2">

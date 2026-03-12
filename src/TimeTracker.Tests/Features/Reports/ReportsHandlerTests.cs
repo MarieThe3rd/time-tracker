@@ -14,9 +14,7 @@ public class ReportsHandlerTests
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        var db = new AppDbContext(options);
-        db.Database.EnsureCreated();
-        return db;
+        return new AppDbContext(options);
     }
 
     private static ReportsHandler CreateHandler(AppDbContext db) =>
@@ -228,3 +226,4 @@ public class ReportsHandlerTests
         Assert.Equal(90, weeks[1].TotalTimeSpentMinutes);
     }
 }
+

@@ -15,12 +15,7 @@ public class SqlJournalEntryRepository(AppDbContext db) : IJournalEntryRepositor
         bool includeLinkedTimeEntry = false,
         int? categoryId = null)
     {
-        var query = db.JournalEntries
-            .Include(e => e.JournalType)
-            .Include(e => e.JournalCategory)
-            .AsQueryable();
-        if (includeLinkedTimeEntry)
-            query = query.Include(e => e.LinkedTimeEntry);
+        var query = db.JournalEntries.AsQueryable();
         if (journalTypeId.HasValue)
             query = query.Where(e => e.JournalTypeId == journalTypeId.Value);
         if (categoryId.HasValue)
@@ -30,16 +25,18 @@ public class SqlJournalEntryRepository(AppDbContext db) : IJournalEntryRepositor
         if (to.HasValue)
             query = query.Where(e => e.Date <= to.Value);
 
-        return await query
+        var orderedQuery = query
             .OrderByDescending(e => e.Date)
-            .ThenByDescending(e => e.CreatedAt)
-            .ToListAsync();
+            .ThenByDescending(e => e.CreatedAt);
+
+        if (includeLinkedTimeEntry)
+            return await orderedQuery.Include(e => e.LinkedTimeEntry).ToListAsync();
+
+        return await orderedQuery.ToListAsync();
     }
 
     public async Task<List<JournalEntry>> GetRecentAsync(int count)
         => await db.JournalEntries
-            .Include(e => e.JournalType)
-            .Include(e => e.JournalCategory)
             .OrderByDescending(e => e.Date)
             .ThenByDescending(e => e.CreatedAt)
             .Take(count)

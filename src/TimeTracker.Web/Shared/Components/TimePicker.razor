@@ -13,11 +13,17 @@
         }
     </select>
     <span class="text-muted small">or:</span>
-    <input type="text" class="form-control form-control-sm" style="width:80px"
-           placeholder="HH:mm"
-           @bind="_customTime"
-           @bind:event="oninput"
-           @onblur="ApplyCustomTime" />
+    <div>
+        <input type="text" class="form-control form-control-sm" style="width:80px"
+               placeholder="HH:mm"
+               @bind="_customTime"
+               @bind:event="oninput"
+               @onblur="ApplyCustomTime" />
+        @if (_timeInputError)
+        {
+            <div class="text-danger small mt-1">Invalid time — use H:mm (e.g. 9:30)</div>
+        }
+    </div>
 </div>
 
 @code {
@@ -31,6 +37,7 @@
     private int _timeMinutes = 0;
     private string _dropdownValue = "0";
     private string _customTime = "";
+    private bool _timeInputError = false;
 
     protected override void OnInitialized()
     {
@@ -86,7 +93,20 @@
         {
             _timeMinutes = minutes;
             _dropdownValue = (_timeMinutes % 15 == 0) ? _timeMinutes.ToString() : "";
+            _timeInputError = false;
             await NotifyChanged();
+        }
+        else
+        {
+            // Invalid input: clear the text and show error
+            _customTime = "";
+            _timeInputError = true;
+            StateHasChanged();
+            
+            // Auto-clear error after 3 seconds
+            await Task.Delay(3000);
+            _timeInputError = false;
+            StateHasChanged();
         }
     }
 

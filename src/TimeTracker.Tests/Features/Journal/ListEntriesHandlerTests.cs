@@ -13,9 +13,7 @@ public class ListEntriesHandlerTests
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        var db = new AppDbContext(options);
-        db.Database.EnsureCreated();
-        return db;
+        return new AppDbContext(options);
     }
 
     private static async Task<AppDbContext> SeedAsync()
@@ -174,4 +172,5 @@ public class ListEntriesHandlerTests
         Assert.Equal("Match", results[0].Title);
     }
 }
+
 

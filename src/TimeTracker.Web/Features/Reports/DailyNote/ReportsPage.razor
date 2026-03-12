@@ -6,6 +6,7 @@
 @inject MarkdownExportService MarkdownService
 @inject IUserSettingsRepository _settingsRepo
 @inject IJSRuntime JS
+@inject TimeTracker.Web.Data.Repositories.IJournalTypeRepository JournalTypeRepo
 
 <PageTitle>Reports — Time Tracker</PageTitle>
 
@@ -391,9 +392,10 @@
                                     <h6 class="fw-semibold mb-2">Journal</h6>
                                     @foreach (var typeGroup in dailyJournal.GroupBy(j => j.JournalTypeId).OrderBy(g => g.Key))
                                     {
-                                        var jIcon  = typeGroup.First().JournalType?.Icon  ?? "bi-journal";
-                                        var jColor = typeGroup.First().JournalType?.Color ?? "#6c757d";
-                                        var jName  = typeGroup.First().JournalType?.Name  ?? typeGroup.Key.ToString();
+                                        var jt = _journalTypes.FirstOrDefault(t => t.Id == typeGroup.Key);
+                                        var jIcon  = jt?.Icon  ?? "bi-journal";
+                                        var jColor = jt?.Color ?? "#6c757d";
+                                        var jName  = jt?.Name  ?? typeGroup.Key.ToString();
                                         <div class="mb-3">
                                             <div class="mb-2">
                                                 <span class="badge" style="background-color:@jColor"><i class="bi @jIcon me-1"></i>@jName</span>
@@ -597,6 +599,7 @@
     private List<TimeEntry> _entries = [];
     private List<JournalEntry> _journal = [];
     private List<AiUsageWeeklyItem> _aiWeeks = [];
+    private List<JournalType> _journalTypes = [];
     private UserSettings _settings = new();
     private string _tab = "summary";
     private string _preset = "week";
@@ -615,6 +618,7 @@
     protected override async Task OnInitializedAsync()
     {
         _settings = await _settingsRepo.GetAsync();
+        _journalTypes = await JournalTypeRepo.GetAllAsync();
         await ApplyPreset();
     }
 

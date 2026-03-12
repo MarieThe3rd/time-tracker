@@ -13,9 +13,7 @@ public class DashboardHandlerTests
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        var db = new AppDbContext(options);
-        db.Database.EnsureCreated();
-        return db;
+        return new AppDbContext(options);
     }
 
     private static DashboardHandler CreateHandler(AppDbContext db) =>
@@ -266,3 +264,4 @@ public class DashboardHandlerTests
         Assert.Equal(3.0, data.TotalTime.TotalHours);
     }
 }
+
