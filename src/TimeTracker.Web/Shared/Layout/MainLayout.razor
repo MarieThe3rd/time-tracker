@@ -1,12 +1,24 @@
 @inherits LayoutComponentBase
 @using TimeTracker.Web.Features.Journal.AddEntry
+@using TimeTracker.Web.Features.Reminders
+@using TimeTracker.Web.Data.Models
 @using TimeTracker.Web.Shared.Components
 @inject IJSRuntime JS
+@inject ListRemindersHandler RemindersHandler
+@implements IDisposable
 
 <div class="layout-wrapper">
     <NavMenu />
     <div class="d-flex flex-column flex-grow-1" style="min-width:0">
         <TimerStrip />
+        @if (_showNotification && _dueReminders.Count > 0)
+        {
+            <div id="reminder-notification-banner" class="alert alert-warning alert-dismissible mb-0 rounded-0 d-flex align-items-center gap-2" role="alert">
+                <span>🔔 You have @_dueReminders.Count reminder(s) due: @string.Join(", ", _dueReminders.Select(r => r.Title))</span>
+                <a href="/reminders" class="alert-link">View Reminders</a>
+                <button type="button" id="dismiss-notification" class="btn-close ms-auto" @onclick="DismissNotification" aria-label="Dismiss"></button>
+            </div>
+        }
         <main class="main-content">
             <div class="container-fluid py-3">
                 @Body
@@ -18,6 +30,11 @@
 <QuickAddPanel />
 
 @code {
+    private List<Reminder> _dueReminders = [];
+    private bool _showNotification = false;
+    private PeriodicTimer? _timer;
+    private CancellationTokenSource? _cts;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
@@ -26,6 +43,47 @@
             // detect when the SignalR circuit is connected and event handlers are wired.
             await JS.InvokeVoidAsync("eval",
                 "document.body.setAttribute('data-blazor-ready','true')");
+
+            await CheckDueRemindersAsync();
+            StartTimer();
         }
+    }
+
+    private void StartTimer()
+    {
+        _cts = new CancellationTokenSource();
+        _timer = new PeriodicTimer(TimeSpan.FromSeconds(60));
+        _ = RunTimerAsync(_cts.Token);
+    }
+
+    private async Task RunTimerAsync(CancellationToken ct)
+    {
+        try
+        {
+            while (await _timer!.WaitForNextTickAsync(ct))
+                await CheckDueRemindersAsync();
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private async Task CheckDueRemindersAsync()
+    {
+        var active = await RemindersHandler.HandleAsync(activeOnly: true);
+        _dueReminders = active.Where(r => r.RemindOn <= DateTime.Now).ToList();
+        if (_dueReminders.Count > 0)
+            _showNotification = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void DismissNotification()
+    {
+        _showNotification = false;
+    }
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _timer?.Dispose();
+        _cts?.Dispose();
     }
 }
