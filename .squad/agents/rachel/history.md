@@ -9,3 +9,9 @@
 ## Learnings
 
 <!-- Append learnings below -->
+
+## 2026-03-12 — Journal Categories Backend Completion
+- Seeded system categories (Work, Personal, Learning, Health) via EF migration
+- Added category existence validation to AddEntryHandler and UpdateJournalEntryHandler
+- Added NullCategoryAsync to IJournalEntryRepository + SqlJournalEntryRepository
+- Added cascade delete + system category guard to ManageJournalCategoriesHandler

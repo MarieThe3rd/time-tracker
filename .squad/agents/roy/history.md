@@ -9,3 +9,7 @@
 ## Learnings
 
 <!-- Append learnings below -->
+
+## 2026-03-12 — Journal Categories Icon Picker
+- Added 12-icon Bootstrap icon picker to SettingsPage.razor Journal Categories section
+- Supports both add and edit flows; icon persists correctly on save

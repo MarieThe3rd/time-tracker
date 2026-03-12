@@ -1,9 +1,13 @@
 ---
 updated_at: 2026-03-12T00:25:22.570Z
-focus_area: Initial setup
+focus_area: Journal Categories — complete
 active_issues: []
 ---
 
-# What We're Focused On
+# Now
 
-Getting started. Updated by coordinator at session start.
+## Current Focus
+
+Journal Categories feature — complete. All CRUD, seeding, validation, cascade delete, icon picker, and tests shipped.
+
+Next: awaiting new work item from coordinator.
