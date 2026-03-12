@@ -267,5 +267,81 @@ public class DashboardHandlerTests
         Assert.Equal(2, data.EntryCount);
         Assert.Equal(3.0, data.TotalTime.TotalHours);
     }
+
+    [Fact]
+    public async Task HandleAsync_NoTasks_ReturnsZeroOverdueCount()
+    {
+        using var db = CreateDb();
+        var data = await CreateHandler(db).HandleAsync();
+
+        Assert.Equal(0, data.OverdueTaskCount);
+    }
+
+    [Fact]
+    public async Task HandleAsync_TasksWithPastDueDate_ReturnsCorrectOverdueCount()
+    {
+        using var db = CreateDb();
+        var yesterday = DateOnly.FromDateTime(DateTime.Today).AddDays(-1);
+        db.TaskItems.AddRange(
+            new TaskItem { Title = "Overdue A", DueDate = yesterday, Status = TaskItemStatus.NotStarted },
+            new TaskItem { Title = "Overdue B", DueDate = yesterday, Status = TaskItemStatus.InProgress }
+        );
+        await db.SaveChangesAsync();
+
+        var data = await CreateHandler(db).HandleAsync();
+
+        Assert.Equal(2, data.OverdueTaskCount);
+    }
+
+    [Fact]
+    public async Task HandleAsync_CompletedTaskWithPastDueDate_NotCountedAsOverdue()
+    {
+        using var db = CreateDb();
+        var yesterday = DateOnly.FromDateTime(DateTime.Today).AddDays(-1);
+        db.TaskItems.Add(new TaskItem { Title = "Done task", DueDate = yesterday, Status = TaskItemStatus.Done });
+        await db.SaveChangesAsync();
+
+        var data = await CreateHandler(db).HandleAsync();
+
+        Assert.Equal(0, data.OverdueTaskCount);
+    }
+
+    [Fact]
+    public async Task HandleAsync_NoReminders_ReturnsZeroUpcomingReminderCount()
+    {
+        using var db = CreateDb();
+        var data = await CreateHandler(db).HandleAsync();
+
+        Assert.Equal(0, data.UpcomingReminderCount);
+    }
+
+    [Fact]
+    public async Task HandleAsync_ActiveRemindersWithinWindow_ReturnsCorrectUpcomingCount()
+    {
+        using var db = CreateDb();
+        var soon = DateTime.UtcNow.AddHours(1);
+        db.Reminders.AddRange(
+            new Reminder { Title = "Soon A", RemindOn = soon, Status = ReminderStatus.Active },
+            new Reminder { Title = "Soon B", RemindOn = soon.AddHours(10), Status = ReminderStatus.Snoozed }
+        );
+        await db.SaveChangesAsync();
+
+        var data = await CreateHandler(db).HandleAsync();
+
+        Assert.Equal(2, data.UpcomingReminderCount);
+    }
+
+    [Fact]
+    public async Task HandleAsync_DismissedReminders_NotCountedAsUpcoming()
+    {
+        using var db = CreateDb();
+        var soon = DateTime.UtcNow.AddHours(2);
+        db.Reminders.Add(new Reminder { Title = "Dismissed", RemindOn = soon, Status = ReminderStatus.Dismissed });
+        await db.SaveChangesAsync();
+
+        var data = await CreateHandler(db).HandleAsync();
+
+        Assert.Equal(0, data.UpcomingReminderCount);
+    }
 }
 
