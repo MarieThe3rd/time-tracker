@@ -28,8 +28,18 @@ public class ReportsPage(IPage page) : PageObjectBase(page)
     public ILocator AiSavingsSummaryCard => Page.Locator(".card-header", new() { HasText = "AI Savings Summary" });
     public ILocator AiSavingsText => Page.Locator("text=saved using AI");
 
-    // Markdown preview
+    // Markdown preview — NOTE: Wave 4 replaced <pre> blocks on daily/weekly/review tabs
+    // with structured HTML. This locator is kept for the AI tab download flow tests only.
     public ILocator MarkdownPreview => Page.Locator("pre").First;
+
+    // Wave 4: HTML-rendered tab content locators
+    public ILocator DailyNoteTable => Page.Locator(".card-body table.table").First;
+    public ILocator WeeklyProgressBars => Page.Locator(".progress");
+    public ILocator ReviewSuccessSection => Page.Locator(".badge.bg-success");
+    public ILocator ReviewChallengeSection => Page.Locator(".badge.bg-warning");
+    public ILocator ReviewLearningSection => Page.Locator(".badge.bg-info.text-dark");
+    public ILocator DownloadMdButton => Page.Locator("button", new() { HasText = "Download .md" });
+    public ILocator PushToObsidianButton => Page.Locator("button", new() { HasText = "Push to Obsidian" });
 
     public async Task<IReadOnlyList<string>> GetAiChartDatasetLabelsAsync()
     {

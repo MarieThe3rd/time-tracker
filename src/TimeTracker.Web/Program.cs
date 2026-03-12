@@ -20,7 +20,9 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")),
+    contextLifetime: ServiceLifetime.Transient,
+    optionsLifetime: ServiceLifetime.Singleton);
 
 // Repository implementations
 builder.Services.AddScoped<ITimeEntryRepository, SqlTimeEntryRepository>();

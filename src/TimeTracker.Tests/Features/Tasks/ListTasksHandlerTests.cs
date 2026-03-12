@@ -85,6 +85,22 @@ public class ListTasksHandlerTests
     }
 
     [Fact]
+    public async Task FilterByDeliverableTo_IsCaseInsensitive()
+    {
+        using var db = CreateDb();
+        var (add, list) = CreateHandlers(db);
+
+        await add.HandleAsync(new AddTaskInput("Task for Alice", DeliverableTo: "Alice"));
+        await add.HandleAsync(new AddTaskInput("Task for Bob", DeliverableTo: "Bob"));
+
+        // Filter with lowercase, should still match "Alice"
+        var result = await list.HandleAsync(new TaskFilter(DeliverableTo: "alice"));
+
+        Assert.Single(result);
+        Assert.Equal("Task for Alice", result[0].Title);
+    }
+
+    [Fact]
     public async Task HandleAsync_FilterByMultipleFields_AppliesAllFilters()
     {
         using var db = CreateDb();

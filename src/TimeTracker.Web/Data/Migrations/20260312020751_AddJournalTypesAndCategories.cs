@@ -161,6 +161,8 @@ namespace TimeTracker.Web.Data.Migrations
                 name: "FK_JournalEntries_JournalTypes_JournalTypeId",
                 table: "JournalEntries");
 
+            migrationBuilder.Sql("UPDATE JournalEntries SET JournalTypeId = JournalTypeId - 1");
+
             migrationBuilder.DropTable(
                 name: "JournalCategories");
 

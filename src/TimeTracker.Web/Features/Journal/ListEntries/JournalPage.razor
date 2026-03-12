@@ -1,10 +1,13 @@
 @page "/journal"
 @rendermode InteractiveServer
 @implements IDisposable
+@using TimeTracker.Web.Features.Journal.UpdateJournalEntry
 @inject ListEntriesHandler ListHandler
 @inject DeleteJournalEntryHandler DeleteHandler
+@inject UpdateJournalEntryHandler UpdateHandler
 @inject TimeTracker.Web.Features.Journal.JournalChangeService JournalChangeSvc
 @inject TimeTracker.Web.Data.Repositories.IJournalTypeRepository JournalTypeRepo
+@inject TimeTracker.Web.Data.Repositories.IJournalCategoryRepository JournalCategoryRepo
 
 <PageTitle>Journal — Time Tracker</PageTitle>
 
@@ -23,6 +26,16 @@
                     @foreach (var t in _journalTypes)
                     {
                         <option value="@t.Id">@t.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="form-label">Category</label>
+                <select class="form-select" @bind="_filterCategoryId" @bind:after="Refresh">
+                    <option value="">All categories</option>
+                    @foreach (var c in _journalCategories)
+                    {
+                        <option value="@c.Id">@c.Name</option>
                     }
                 </select>
             </div>
@@ -60,10 +73,15 @@ else
             var entryIcon  = jt?.Icon  ?? "bi-journal";
             var entryColor = jt?.Color ?? "#6c757d";
             var entryName  = jt?.Name  ?? entry.JournalTypeId.ToString();
+            var jc = _journalCategories.FirstOrDefault(c => c.Id == entry.JournalCategoryId);
             <div class="card shadow-sm mb-2">
                 <div class="card-body py-2">
                     <div class="d-flex align-items-start gap-2">
                         <span class="badge mt-1" style="background-color:@entryColor"><i class="bi @entryIcon me-1"></i>@entryName</span>
+                        @if (jc is not null)
+                        {
+                            <span class="badge mt-1" style="background-color:@jc.Color"><i class="bi @jc.Icon me-1"></i>@jc.Name</span>
+                        }
                         <div class="flex-grow-1">
                             <div class="fw-semibold">@entry.Title</div>
                             @if (!string.IsNullOrWhiteSpace(entry.Body))
@@ -71,8 +89,14 @@ else
                                 <p class="text-muted small mb-0">@entry.Body</p>
                             }
                         </div>
+                        <button class="btn btn-sm btn-outline-secondary"
+                                @onclick="() => StartEdit(entry)"
+                                title="Edit entry">
+                            <i class="bi bi-pencil"></i>
+                        </button>
                         <button class="btn btn-sm btn-outline-danger"
-                                @onclick="() => Delete(entry.Id)">
+                                @onclick="() => Delete(entry.Id)"
+                                title="Delete entry">
                             <i class="bi bi-trash"></i>
                         </button>
                     </div>
@@ -82,17 +106,78 @@ else
     }
 }
 
+@if (_showEditModal && _editingEntry is not null)
+{
+    <div class="modal show d-block" tabindex="-1" role="dialog" aria-modal="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Edit Journal Entry</h5>
+                    <button type="button" class="btn-close" @onclick="CloseEditModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Type</label>
+                        <select class="form-select" @bind="_editingEntry.JournalTypeId">
+                            @foreach (var t in _journalTypes)
+                            {
+                                <option value="@t.Id">@t.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Category</label>
+                        <select class="form-select" @bind="_editCategoryId">
+                            <option value="">No category</option>
+                            @foreach (var c in _journalCategories)
+                            {
+                                <option value="@c.Id">@c.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Title</label>
+                        <input type="text" class="form-control" @bind="_editingEntry.Title" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" rows="4" @bind="_editingEntry.Body"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Date</label>
+                        <input type="date" class="form-control" @bind="_editingEntry.Date" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseEditModal">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveEdit">
+                        <i class="bi bi-floppy me-1"></i>Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop show"></div>
+}
+
 @code {
     private List<JournalEntry> _entries = [];
     private List<JournalType> _journalTypes = [];
+    private List<JournalCategory> _journalCategories = [];
     private string _filterTypeId = string.Empty;
+    private string _filterCategoryId = string.Empty;
     private DateOnly? _from;
     private DateOnly? _to;
+
+    private bool _showEditModal;
+    private JournalEntry? _editingEntry;
+    private string _editCategoryId = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
         JournalChangeSvc.EntryAdded += OnEntryAdded;
         _journalTypes = await JournalTypeRepo.GetAllAsync();
+        _journalCategories = await JournalCategoryRepo.GetAllAsync();
         await Refresh();
     }
 
@@ -107,8 +192,9 @@ else
 
     private async Task Refresh()
     {
-        int? typeId = int.TryParse(_filterTypeId, out var tid) ? tid : null;
-        var filter = new JournalFilter(typeId, _from, _to);
+        int? typeId     = int.TryParse(_filterTypeId, out var tid) ? tid : null;
+        int? categoryId = int.TryParse(_filterCategoryId, out var cid) ? cid : null;
+        var filter = new JournalFilter(typeId, _from, _to, categoryId);
         _entries = await ListHandler.HandleAsync(filter);
     }
 
@@ -121,8 +207,41 @@ else
     private async Task ClearFilters()
     {
         _filterTypeId = string.Empty;
+        _filterCategoryId = string.Empty;
         _from = null;
         _to = null;
         await Refresh();
+    }
+
+    private void StartEdit(JournalEntry entry)
+    {
+        _editingEntry = entry;
+        _editCategoryId = entry.JournalCategoryId?.ToString() ?? string.Empty;
+        _showEditModal = true;
+    }
+
+    private void CloseEditModal()
+    {
+        _showEditModal = false;
+        _editingEntry = null;
+    }
+
+    private async Task SaveEdit()
+    {
+        if (_editingEntry is null) return;
+
+        int? categoryId = int.TryParse(_editCategoryId, out var cid) ? cid : null;
+        var input = new UpdateJournalEntryInput(
+            _editingEntry.Id,
+            _editingEntry.JournalTypeId,
+            _editingEntry.Title,
+            _editingEntry.Body ?? string.Empty,
+            _editingEntry.Date,
+            _editingEntry.LinkedTimeEntryId,
+            categoryId);
+
+        await UpdateHandler.HandleAsync(input);
+        await Refresh();
+        CloseEditModal();
     }
 }

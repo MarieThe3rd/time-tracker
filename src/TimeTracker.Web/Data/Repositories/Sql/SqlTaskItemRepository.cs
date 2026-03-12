@@ -31,7 +31,8 @@ public class SqlTaskItemRepository(AppDbContext db) : ITaskItemRepository
             query = query.Where(t => t.DueDate.HasValue && t.DueDate.Value <= dueBefore.Value);
 
         if (!string.IsNullOrWhiteSpace(deliverableTo))
-            query = query.Where(t => t.DeliverableTo == deliverableTo);
+            query = query.Where(t => t.DeliverableTo != null && 
+                t.DeliverableTo.ToLower() == deliverableTo.ToLower());
 
         if (workCategoryId.HasValue)
             query = query.Where(t => t.WorkCategoryId == workCategoryId.Value);

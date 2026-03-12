@@ -137,4 +137,65 @@ public class DashboardTests(AppFixture app)
 
         Assert.Contains("/timer", page.Url);
     }
+
+    // Wave 5 tests — date range preset buttons on dashboard
+
+    [Fact]
+    public async Task DashboardPage_HasDateRangePresets()
+    {
+        var page = await app.NewPageAsync();
+        var dashboard = new DashboardPage(page);
+        await dashboard.GotoAsync();
+
+        Assert.True(await dashboard.TodayPresetButton.IsVisibleAsync(), "Expected 'Today' preset button.");
+        Assert.True(await dashboard.ThisWeekPresetButton.IsVisibleAsync(), "Expected 'This Week' preset button.");
+        Assert.True(await dashboard.ThisMonthPresetButton.IsVisibleAsync(), "Expected 'This Month' preset button.");
+        Assert.True(await dashboard.CustomPresetButton.IsVisibleAsync(), "Expected 'Custom' preset button.");
+    }
+
+    [Fact]
+    public async Task DashboardPage_DefaultPreset_IsToday()
+    {
+        var page = await app.NewPageAsync();
+        var dashboard = new DashboardPage(page);
+        await dashboard.GotoAsync();
+
+        var cssClass = await dashboard.TodayPresetButton.GetAttributeAsync("class");
+        Assert.True(cssClass?.Contains("btn-primary") == true,
+            "Expected 'Today' button to have active (btn-primary) styling on initial load.");
+    }
+
+    [Fact]
+    public async Task DashboardPage_CustomPreset_ShowsDateInputs()
+    {
+        var page = await app.NewPageAsync();
+        var dashboard = new DashboardPage(page);
+        await dashboard.GotoAsync();
+
+        // Date inputs must not exist before selecting Custom
+        Assert.Equal(0, await dashboard.CustomFromInput.CountAsync());
+
+        await dashboard.CustomPresetButton.ClickAsync();
+        await dashboard.WaitForBlazorAsync();
+
+        Assert.True(await dashboard.CustomFromInput.IsVisibleAsync(),
+            "Expected a 'from' date input to appear after clicking Custom.");
+        Assert.True(await dashboard.CustomToInput.IsVisibleAsync(),
+            "Expected a 'to' date input to appear after clicking Custom.");
+    }
+
+    [Fact]
+    public async Task DashboardPage_ThisWeekPreset_UpdatesDateLabel()
+    {
+        var page = await app.NewPageAsync();
+        var dashboard = new DashboardPage(page);
+        await dashboard.GotoAsync();
+
+        await dashboard.ThisWeekPresetButton.ClickAsync();
+        await dashboard.WaitForBlazorAsync();
+
+        var label = await dashboard.DateLabel.InnerTextAsync();
+        Assert.True(label.Contains("Week of"),
+            "Expected the date label to contain 'Week of' after selecting 'This Week' preset.");
+    }
 }

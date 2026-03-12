@@ -20,11 +20,14 @@ public class TimerPage(IPage page) : PageObjectBase(page)
     public ILocator ManualEntryCard => Page.Locator(".card-header", new() { HasText = "Manual Entry" });
 
     // Scope SaveEntryButton to the manual-entry card to avoid matching QuickAdd panel's Save Entry
-    private ILocator ManualEntrySection =>
+    public ILocator ManualEntrySection =>
         Page.Locator(".card", new() { Has = Page.Locator(".card-header", new() { HasText = "Manual Entry" }) });
     public ILocator SaveEntryButton => ManualEntrySection.Locator("button", new() { HasText = "Save Entry" });
-    public ILocator ManualStartInput => ManualEntrySection.Locator("input[type='datetime-local']").First;
-    public ILocator ManualEndInput => ManualEntrySection.Locator("input[type='datetime-local']").Nth(1);
+    // TimePicker renders input[type='date'] + select.form-select-sm (no datetime-local)
+    public ILocator ManualStartInput => ManualEntrySection.Locator("input[type='date']").First;
+    public ILocator ManualEndInput => ManualEntrySection.Locator("input[type='date']").Nth(1);
+    public ILocator ManualStartTimeSelect => ManualEntrySection.Locator("select.form-select-sm").First;
+    public ILocator ManualEndTimeSelect => ManualEntrySection.Locator("select.form-select-sm").Nth(1);
     public ILocator ManualDescriptionInput => ManualEntrySection.Locator("label:has-text('Description') + input.form-control");
     public ILocator ManualValueAddedInput => ManualEntrySection.Locator("label:has-text('Value Added') + input.form-control");
     public ILocator ManualBreakCheckbox => ManualEntrySection.Locator("#manual-is-break");
@@ -36,7 +39,9 @@ public class TimerPage(IPage page) : PageObjectBase(page)
     public ILocator TodaysEntriesCard => Page.Locator(".card-header", new() { HasText = "Today's Entries" });
     public ILocator TimerStrip => Page.Locator(".timer-strip");
     public ILocator EditEntryCard => Page.Locator(".card", new() { Has = Page.Locator(".card-header", new() { HasText = "Edit Entry" }) });
-    public ILocator EditStartInput => EditEntryCard.Locator("input[type='datetime-local']").First;
+    // Edit form also uses TimePicker — input[type='date'] + select.form-select-sm
+    public ILocator EditStartInput => EditEntryCard.Locator("input[type='date']").First;
+    public ILocator EditStartTimeSelect => EditEntryCard.Locator("select.form-select-sm").First;
     public ILocator EditDescriptionInput => EditEntryCard.Locator("label:has-text('Description') + input.form-control");
     public ILocator EditCategorySelect => EditEntryCard.Locator("select.form-select");
     public ILocator SaveChangesButton => EditEntryCard.Locator("button", new() { HasText = "Save Changes" });
@@ -68,6 +73,26 @@ public class TimerPage(IPage page) : PageObjectBase(page)
         await WaitForBlazorAsync();
     }
 
+    /// <summary>Opens the manual entry form if it is not already visible.</summary>
+    public async Task EnsureManualEntryOpenAsync()
+    {
+        if (!await SaveEntryButton.IsVisibleAsync())
+            await ShowManualEntryAsync();
+    }
+
+    /// <summary>
+    /// Fills a TimePicker component (date input + time select) from a datetime string.
+    /// Snaps the time to the nearest 15-minute slot supported by the select.
+    /// </summary>
+    public async Task FillTimePickerAsync(ILocator dateInput, ILocator timeSelect, string dateTimeString)
+    {
+        var dt = DateTime.Parse(dateTimeString);
+        await dateInput.FillAsync(dt.ToString("yyyy-MM-dd"));
+        var minuteOfDay = dt.Hour * 60 + dt.Minute;
+        var slot = (minuteOfDay / 15) * 15;
+        await timeSelect.SelectOptionAsync(slot.ToString());
+    }
+
     public async Task SaveManualEntryAsync(
         string start,
         string end,
@@ -78,8 +103,8 @@ public class TimerPage(IPage page) : PageObjectBase(page)
         int? aiTimeSavedMinutes,
         string? aiNotes)
     {
-        await ManualStartInput.FillAsync(start);
-        await ManualEndInput.FillAsync(end);
+        await FillTimePickerAsync(ManualStartInput, ManualStartTimeSelect, start);
+        await FillTimePickerAsync(ManualEndInput, ManualEndTimeSelect, end);
         await ManualDescriptionInput.FillAsync(description);
         await ManualValueAddedInput.FillAsync(valueAdded ?? string.Empty);
 

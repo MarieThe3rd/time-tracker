@@ -1,0 +1,376 @@
+@page "/reminders"
+@rendermode InteractiveServer
+@using System.ComponentModel.DataAnnotations
+@using TimeTracker.Web.Features.Reminders
+@inject ListRemindersHandler ListHandler
+@inject AddReminderHandler AddHandler
+@inject UpdateReminderHandler UpdateHandler
+@inject DeleteReminderHandler DeleteHandler
+@inject SnoozeReminderHandler SnoozeHandler
+@inject DismissReminderHandler DismissHandler
+
+<PageTitle>Reminders — Time Tracker</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4><i class="bi bi-bell me-2"></i>Reminders</h4>
+    <button class="btn btn-primary" @onclick="OpenAddForm">
+        <i class="bi bi-plus-lg me-1"></i> New Reminder
+    </button>
+</div>
+
+<!-- Show dismissed toggle -->
+<div class="mb-3">
+    <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" id="showDismissed"
+               @bind="_showDismissed" @bind:after="Refresh" />
+        <label class="form-check-label text-muted" for="showDismissed">Show dismissed</label>
+    </div>
+</div>
+
+<!-- Reminder list -->
+@if (_loading)
+{
+    <p class="text-muted">Loading…</p>
+}
+else if (_reminders.Count == 0)
+{
+    <div class="text-center text-muted py-5">
+        <i class="bi bi-bell-slash fs-1 d-block mb-2"></i>
+        No reminders found.
+    </div>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var reminder in _reminders)
+        {
+            var isDismissed = reminder.Status == ReminderStatus.Dismissed;
+            var isOverdue = !isDismissed && reminder.RemindOn <= DateTime.Now;
+
+            <div class="col-12 col-md-6 col-xl-4">
+                <div class="card shadow-sm h-100 @(isDismissed ? "opacity-50" : "")">
+                    <div class="card-body">
+                        <div class="d-flex align-items-start gap-2 mb-2">
+                            <span class="fw-bold flex-grow-1">@reminder.Title</span>
+                            @if (reminder.Repeat != ReminderRepeat.None)
+                            {
+                                <span class="badge @RepeatBadge(reminder.Repeat)">@reminder.Repeat</span>
+                            }
+                            <span class="badge @StatusBadge(reminder.Status)">@reminder.Status</span>
+                        </div>
+
+                        <div class="mb-2">
+                            <small class="@(isOverdue ? "text-danger fw-semibold" : "text-muted")">
+                                <i class="bi bi-clock me-1"></i>
+                                @reminder.RemindOn.ToString("MMM d, yyyy h:mm tt")
+                                @if (isOverdue) { <span> ⚠ Overdue</span> }
+                            </small>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(reminder.Notes))
+                        {
+                            <p class="text-muted small mb-2">@reminder.Notes</p>
+                        }
+
+                        <div class="d-flex gap-2 flex-wrap mt-2">
+                            @if (!isDismissed)
+                            {
+                                <button class="btn btn-sm btn-outline-warning" @onclick="() => OpenSnooze(reminder)" title="Snooze">
+                                    <i class="bi bi-alarm me-1"></i> Snooze
+                                </button>
+                                <button class="btn btn-sm btn-outline-success" @onclick="() => Dismiss(reminder.Id)" title="Dismiss">
+                                    <i class="bi bi-check-lg me-1"></i> Dismiss
+                                </button>
+                            }
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => OpenEditForm(reminder)" title="Edit">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmDelete(reminder)" title="Delete">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<!-- Add/Edit Modal -->
+@if (_showForm)
+{
+    <div class="modal show d-block" tabindex="-1" role="dialog" aria-modal="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(_editId.HasValue ? "Edit Reminder" : "New Reminder")</h5>
+                    <button type="button" class="btn-close" @onclick="CloseForm" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <EditForm Model="_form" OnValidSubmit="SaveReminder">
+                        <DataAnnotationsValidator />
+
+                        <div class="mb-3">
+                            <label class="form-label">Title <span class="text-danger">*</span></label>
+                            <InputText class="form-control" @bind-Value="_form.Title" placeholder="Reminder title" />
+                            <ValidationMessage For="() => _form.Title" class="text-danger small" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Notes</label>
+                            <InputTextArea class="form-control" @bind-Value="_form.Notes" rows="3" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Remind On <span class="text-danger">*</span></label>
+                            <input type="datetime-local" class="form-control" @bind="_form.RemindOn" />
+                            @if (_remindOnError)
+                            {
+                                <div class="text-danger small">Remind On is required.</div>
+                            }
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Repeat</label>
+                            <InputSelect class="form-select" @bind-Value="_form.Repeat">
+                                @foreach (var r in Enum.GetValues<ReminderRepeat>())
+                                {
+                                    <option value="@r">@r</option>
+                                }
+                            </InputSelect>
+                        </div>
+
+                        @if (_editId.HasValue)
+                        {
+                            <div class="mb-3">
+                                <label class="form-label">Status</label>
+                                <InputSelect class="form-select" @bind-Value="_form.Status">
+                                    @foreach (var s in Enum.GetValues<ReminderStatus>())
+                                    {
+                                        <option value="@s">@s</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                        }
+
+                        <div class="d-flex justify-content-end gap-2 pt-2 border-top mt-3">
+                            <button type="button" class="btn btn-secondary" @onclick="CloseForm">Cancel</button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-floppy me-1"></i> Save
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop show"></div>
+}
+
+<!-- Snooze Modal -->
+@if (_snoozeTarget is not null)
+{
+    <div class="modal show d-block" tabindex="-1" role="dialog" aria-modal="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-alarm me-2"></i>Snooze Reminder</h5>
+                    <button type="button" class="btn-close" @onclick="CancelSnooze" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="fw-semibold mb-1">@_snoozeTarget.Title</p>
+                    <p class="text-muted small mb-3">
+                        Currently set for: @_snoozeTarget.RemindOn.ToString("MMM d, yyyy h:mm tt")
+                    </p>
+                    <div class="mb-3">
+                        <label class="form-label">New reminder time</label>
+                        <input type="datetime-local" class="form-control" @bind="_snoozeDateTime" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CancelSnooze">Cancel</button>
+                    <button class="btn btn-warning" @onclick="ExecuteSnooze">
+                        <i class="bi bi-alarm me-1"></i> Snooze
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop show"></div>
+}
+
+<!-- Delete Confirm Modal -->
+@if (_deleteTarget is not null)
+{
+    <div class="modal show d-block" tabindex="-1" role="dialog" aria-modal="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title text-danger">
+                        <i class="bi bi-exclamation-triangle me-2"></i>Delete Reminder
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CancelDelete" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-1">Are you sure you want to delete this reminder?</p>
+                    <p class="fw-semibold mb-0">@_deleteTarget.Title</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CancelDelete">Cancel</button>
+                    <button class="btn btn-danger" @onclick="ExecuteDelete">
+                        <i class="bi bi-trash me-1"></i> Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop show"></div>
+}
+
+@code {
+    private List<Reminder> _reminders = [];
+    private bool _loading = true;
+    private bool _showDismissed;
+
+    // Form state
+    private bool _showForm;
+    private int? _editId;
+    private ReminderFormModel _form = new();
+    private bool _remindOnError;
+
+    // Snooze state
+    private Reminder? _snoozeTarget;
+    private DateTime _snoozeDateTime = DateTime.Now.AddHours(1);
+
+    // Delete state
+    private Reminder? _deleteTarget;
+
+    protected override async Task OnInitializedAsync() => await Refresh();
+
+    private async Task Refresh()
+    {
+        _loading = true;
+        _reminders = await ListHandler.HandleAsync(activeOnly: false, includeDismissed: _showDismissed);
+        _loading = false;
+    }
+
+    private void OpenAddForm()
+    {
+        _editId = null;
+        _form = new ReminderFormModel { RemindOn = DateTime.Now.AddHours(1) };
+        _remindOnError = false;
+        _showForm = true;
+    }
+
+    private void OpenEditForm(Reminder reminder)
+    {
+        _editId = reminder.Id;
+        _form = new ReminderFormModel
+        {
+            Title = reminder.Title,
+            Notes = reminder.Notes,
+            RemindOn = reminder.RemindOn,
+            Repeat = reminder.Repeat,
+            Status = reminder.Status
+        };
+        _remindOnError = false;
+        _showForm = true;
+    }
+
+    private void CloseForm()
+    {
+        _showForm = false;
+        _editId = null;
+        _remindOnError = false;
+    }
+
+    private async Task SaveReminder()
+    {
+        if (_form.RemindOn == default)
+        {
+            _remindOnError = true;
+            return;
+        }
+        _remindOnError = false;
+
+        if (_editId.HasValue)
+        {
+            await UpdateHandler.HandleAsync(new UpdateReminderInput(
+                Id: _editId.Value,
+                Title: _form.Title,
+                RemindOn: _form.RemindOn,
+                Repeat: _form.Repeat,
+                Status: _form.Status,
+                Notes: _form.Notes
+            ));
+        }
+        else
+        {
+            await AddHandler.HandleAsync(new AddReminderInput(
+                Title: _form.Title,
+                RemindOn: _form.RemindOn,
+                Notes: _form.Notes,
+                Repeat: _form.Repeat
+            ));
+        }
+        CloseForm();
+        await Refresh();
+    }
+
+    private void OpenSnooze(Reminder reminder)
+    {
+        _snoozeTarget = reminder;
+        _snoozeDateTime = DateTime.Now.AddHours(1);
+    }
+
+    private void CancelSnooze() => _snoozeTarget = null;
+
+    private async Task ExecuteSnooze()
+    {
+        if (_snoozeTarget is null) return;
+        await SnoozeHandler.HandleAsync(_snoozeTarget.Id, _snoozeDateTime);
+        _snoozeTarget = null;
+        await Refresh();
+    }
+
+    private async Task Dismiss(int id)
+    {
+        await DismissHandler.HandleAsync(id);
+        await Refresh();
+    }
+
+    private void ConfirmDelete(Reminder reminder) => _deleteTarget = reminder;
+    private void CancelDelete() => _deleteTarget = null;
+
+    private async Task ExecuteDelete()
+    {
+        if (_deleteTarget is null) return;
+        await DeleteHandler.HandleAsync(_deleteTarget.Id);
+        _deleteTarget = null;
+        await Refresh();
+    }
+
+    private static string RepeatBadge(ReminderRepeat r) => r switch
+    {
+        ReminderRepeat.Daily => "bg-info text-dark",
+        ReminderRepeat.Weekly => "bg-primary",
+        _ => "bg-secondary"
+    };
+
+    private static string StatusBadge(ReminderStatus s) => s switch
+    {
+        ReminderStatus.Active => "bg-success",
+        ReminderStatus.Snoozed => "bg-warning text-dark",
+        _ => "bg-secondary"
+    };
+
+    private class ReminderFormModel
+    {
+        [Required(ErrorMessage = "Title is required.")]
+        public string Title { get; set; } = string.Empty;
+        public string? Notes { get; set; }
+        public DateTime RemindOn { get; set; } = DateTime.Now.AddHours(1);
+        public ReminderRepeat Repeat { get; set; } = ReminderRepeat.None;
+        public ReminderStatus Status { get; set; } = ReminderStatus.Active;
+    }
+}

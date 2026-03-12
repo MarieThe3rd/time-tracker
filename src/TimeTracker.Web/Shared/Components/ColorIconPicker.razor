@@ -1,0 +1,74 @@
+@namespace TimeTracker.Web.Shared.Components
+
+<div class="d-flex gap-1 align-items-center flex-wrap">
+    <input type="color"
+           class="form-control form-control-color form-control-sm"
+           style="width:40px;height:31px;padding:2px"
+           value="@Color"
+           @onchange="async e => await ColorChanged.InvokeAsync(e.Value?.ToString() ?? Color)"
+           title="Pick a color" />
+    <input class="form-control form-control-sm"
+           style="min-width:140px"
+           placeholder="Icon (e.g. bi-star)"
+           value="@Icon"
+           list="icon-opts-@_uid"
+           @onchange="async e => await IconChanged.InvokeAsync(e.Value?.ToString() ?? Icon)"
+           title="Bootstrap icon class name" />
+    <datalist id="icon-opts-@_uid">
+        @foreach (var ico in _icons)
+        {
+            <option value="@ico" />
+        }
+    </datalist>
+    <span class="badge p-1" style="background-color:@Color;min-width:26px;text-align:center" title="Preview">
+        <i class="bi @Icon"></i>
+    </span>
+</div>
+
+@code {
+    [Parameter] public string Color { get; set; } = "#6c757d";
+    [Parameter] public EventCallback<string> ColorChanged { get; set; }
+    [Parameter] public string Icon { get; set; } = "bi-circle";
+    [Parameter] public EventCallback<string> IconChanged { get; set; }
+
+    private readonly string _uid = Guid.NewGuid().ToString("N")[..8];
+
+    private static readonly string[] _icons =
+    [
+        // Journal
+        "bi-journal", "bi-journal-text", "bi-journal-plus", "bi-journal-bookmark",
+        "bi-journal-check", "bi-journal-x", "bi-journal-arrow-up",
+        // Achievement / status
+        "bi-star", "bi-star-fill", "bi-heart", "bi-heart-fill",
+        "bi-trophy", "bi-trophy-fill", "bi-award", "bi-award-fill",
+        "bi-lightbulb", "bi-lightbulb-fill",
+        "bi-exclamation-triangle", "bi-exclamation-diamond", "bi-exclamation-circle",
+        "bi-check-circle", "bi-check-circle-fill", "bi-check2-circle",
+        "bi-info-circle", "bi-question-circle",
+        // Tags / organisation
+        "bi-tag", "bi-tag-fill", "bi-tags", "bi-tags-fill",
+        "bi-bookmark", "bi-bookmark-fill", "bi-bookmark-star",
+        "bi-flag", "bi-flag-fill",
+        // Shapes / misc
+        "bi-circle", "bi-circle-fill", "bi-square", "bi-square-fill",
+        "bi-diamond", "bi-diamond-fill",
+        "bi-lightning", "bi-lightning-fill",
+        "bi-gear", "bi-gear-fill",
+        "bi-clock", "bi-clock-fill", "bi-calendar", "bi-calendar-fill",
+        "bi-person", "bi-person-fill", "bi-people", "bi-people-fill",
+        "bi-briefcase", "bi-briefcase-fill",
+        "bi-graph-up", "bi-graph-down",
+        "bi-bar-chart", "bi-bar-chart-fill",
+        "bi-chat", "bi-chat-fill", "bi-chat-dots",
+        "bi-code", "bi-code-slash",
+        "bi-bug", "bi-bug-fill",
+        "bi-wrench", "bi-tools",
+        "bi-rocket", "bi-rocket-fill",
+        "bi-fire", "bi-snow",
+        "bi-emoji-smile", "bi-emoji-frown",
+        "bi-pencil", "bi-pencil-fill",
+        "bi-trash", "bi-trash-fill",
+        "bi-plus-circle", "bi-dash-circle",
+        "bi-lock", "bi-lock-fill",
+    ];
+}

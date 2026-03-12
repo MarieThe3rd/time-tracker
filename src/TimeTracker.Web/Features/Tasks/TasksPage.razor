@@ -1,0 +1,426 @@
+@page "/tasks"
+@rendermode InteractiveServer
+@using System.ComponentModel.DataAnnotations
+@using TimeTracker.Web.Features.Tasks
+@using TimeTracker.Web.Data.Repositories
+@inject ListTasksHandler ListHandler
+@inject AddTaskHandler AddHandler
+@inject UpdateTaskHandler UpdateHandler
+@inject DeleteTaskHandler DeleteHandler
+@inject IWorkCategoryRepository CategoryRepo
+
+<PageTitle>Tasks — Time Tracker</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4><i class="bi bi-check2-square me-2"></i>Tasks</h4>
+    <button class="btn btn-primary" @onclick="OpenAddForm">
+        <i class="bi bi-plus-lg me-1"></i> New Task
+    </button>
+</div>
+
+<!-- Filter bar -->
+<div class="card shadow-sm mb-4">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-end flex-wrap">
+            <div class="col-auto">
+                <label class="form-label mb-1 small fw-semibold">Status</label>
+                <select class="form-select form-select-sm" @bind="_filterStatus" @bind:after="Refresh">
+                    <option value="">All statuses</option>
+                    @foreach (var s in Enum.GetValues<TaskItemStatus>())
+                    {
+                        <option value="@s">@FormatStatus(s)</option>
+                    }
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="form-label mb-1 small fw-semibold">Priority</label>
+                <select class="form-select form-select-sm" @bind="_filterPriority" @bind:after="Refresh">
+                    <option value="">All priorities</option>
+                    @foreach (var p in Enum.GetValues<TaskItemPriority>())
+                    {
+                        <option value="@p">@p</option>
+                    }
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="form-label mb-1 small fw-semibold">Deliverable To</label>
+                <input type="text" class="form-control form-control-sm" style="width:160px"
+                       @bind="_filterDeliverableTo" @bind:after="Refresh" placeholder="Filter…" />
+            </div>
+            <div class="col-auto">
+                <label class="form-label mb-1 small fw-semibold">Category</label>
+                <select class="form-select form-select-sm" @bind="_filterCategoryId" @bind:after="Refresh">
+                    <option value="">All categories</option>
+                    @foreach (var cat in _categories)
+                    {
+                        <option value="@cat.Id">@cat.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-sm btn-outline-secondary" @onclick="ClearFilters">
+                    <i class="bi bi-x-circle me-1"></i> Clear Filters
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Task list -->
+@if (_loading)
+{
+    <p class="text-muted">Loading…</p>
+}
+else if (_tasks.Count == 0)
+{
+    <div class="text-center text-muted py-5">
+        <i class="bi bi-check2-square fs-1 d-block mb-2"></i>
+        No tasks found. Add your first task.
+    </div>
+}
+else
+{
+    <div class="d-flex flex-column gap-2">
+        @foreach (var task in _tasks)
+        {
+            var isOverdue = task.DueDate.HasValue
+                && task.DueDate.Value < DateOnly.FromDateTime(DateTime.Today)
+                && task.Status != TaskItemStatus.Done;
+
+            <div class="card shadow-sm @(task.Status == TaskItemStatus.Blocked ? "border-danger" : "")">
+                <div class="card-body py-2 px-3">
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <span class="badge @PriorityBadge(task.Priority)">@task.Priority</span>
+                        <span class="badge @StatusBadge(task.Status)">@FormatStatus(task.Status)</span>
+
+                        <span class="fw-bold @(task.Status == TaskItemStatus.Done ? "text-decoration-line-through text-muted" : "")">
+                            @task.Title
+                        </span>
+
+                        @if (task.DueDate.HasValue)
+                        {
+                            <small class="@(isOverdue ? "text-danger fw-semibold" : "text-muted")">
+                                <i class="bi bi-calendar2-event me-1"></i>@task.DueDate.Value.ToString("MMM d, yyyy")
+                                @if (isOverdue) { <span>⚠</span> }
+                            </small>
+                        }
+
+                        @if (task.WorkCategory is not null)
+                        {
+                            <span class="badge" style="background-color: @task.WorkCategory.Color">
+                                <i class="bi @task.WorkCategory.Icon me-1"></i>@task.WorkCategory.Name
+                            </span>
+                        }
+
+                        <div class="ms-auto d-flex align-items-center gap-3">
+                            @if (!string.IsNullOrEmpty(task.AssignedBy) || !string.IsNullOrEmpty(task.DeliverableTo))
+                            {
+                                <small class="text-muted">
+                                    @if (!string.IsNullOrEmpty(task.AssignedBy))
+                                    {
+                                        <span>From: @task.AssignedBy</span>
+                                    }
+                                    @if (!string.IsNullOrEmpty(task.AssignedBy) && !string.IsNullOrEmpty(task.DeliverableTo))
+                                    {
+                                        <span> · </span>
+                                    }
+                                    @if (!string.IsNullOrEmpty(task.DeliverableTo))
+                                    {
+                                        <span>To: @task.DeliverableTo</span>
+                                    }
+                                </small>
+                            }
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => OpenEditForm(task)" title="Edit">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmDelete(task)" title="Delete">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<!-- Add/Edit Modal -->
+@if (_showForm)
+{
+    <div class="modal show d-block" tabindex="-1" role="dialog" aria-modal="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(_editId.HasValue ? "Edit Task" : "New Task")</h5>
+                    <button type="button" class="btn-close" @onclick="CloseForm" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <EditForm Model="_form" OnValidSubmit="SaveTask">
+                        <DataAnnotationsValidator />
+
+                        <div class="mb-3">
+                            <label class="form-label">Title <span class="text-danger">*</span></label>
+                            <InputText class="form-control" @bind-Value="_form.Title" placeholder="Task title" />
+                            <ValidationMessage For="() => _form.Title" class="text-danger small" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <InputTextArea class="form-control" @bind-Value="_form.Description" rows="2" />
+                        </div>
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Status</label>
+                                <InputSelect class="form-select" @bind-Value="_form.Status">
+                                    @foreach (var s in Enum.GetValues<TaskItemStatus>())
+                                    {
+                                        <option value="@s">@FormatStatus(s)</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Priority</label>
+                                <InputSelect class="form-select" @bind-Value="_form.Priority">
+                                    @foreach (var p in Enum.GetValues<TaskItemPriority>())
+                                    {
+                                        <option value="@p">@p</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Due Date</label>
+                            <InputDate class="form-control" TValue="DateOnly?" @bind-Value="_form.DueDate" />
+                        </div>
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Assigned By</label>
+                                <InputText class="form-control" @bind-Value="_form.AssignedBy" placeholder="Who assigned this?" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Deliverable To</label>
+                                <InputText class="form-control" @bind-Value="_form.DeliverableTo" placeholder="Who receives this?" />
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Category</label>
+                            <InputSelect class="form-select" TValue="int?" @bind-Value="_form.WorkCategoryId">
+                                <option value="">— No category —</option>
+                                @foreach (var cat in _categories)
+                                {
+                                    <option value="@cat.Id">@cat.Name</option>
+                                }
+                            </InputSelect>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Notes</label>
+                            <InputTextArea class="form-control" @bind-Value="_form.Notes" rows="3" />
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2 pt-2 border-top mt-3">
+                            <button type="button" class="btn btn-secondary" @onclick="CloseForm">Cancel</button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-floppy me-1"></i> Save
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop show"></div>
+}
+
+<!-- Delete Confirm Modal -->
+@if (_deleteTarget is not null)
+{
+    <div class="modal show d-block" tabindex="-1" role="dialog" aria-modal="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title text-danger">
+                        <i class="bi bi-exclamation-triangle me-2"></i>Delete Task
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CancelDelete" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-1">Delete this task?</p>
+                    <p class="fw-semibold mb-0">@_deleteTarget.Title</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CancelDelete">Cancel</button>
+                    <button class="btn btn-danger" @onclick="ExecuteDelete">
+                        <i class="bi bi-trash me-1"></i> Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop show"></div>
+}
+
+@code {
+    private List<TaskItem> _tasks = [];
+    private List<WorkCategory> _categories = [];
+    private bool _loading = true;
+
+    // Filters
+    private string _filterStatus = string.Empty;
+    private string _filterPriority = string.Empty;
+    private string _filterDeliverableTo = string.Empty;
+    private string _filterCategoryId = string.Empty;
+
+    // Form state
+    private bool _showForm;
+    private int? _editId;
+    private TaskFormModel _form = new();
+
+    // Delete state
+    private TaskItem? _deleteTarget;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _categories = await CategoryRepo.GetAllAsync();
+        await Refresh();
+    }
+
+    private async Task Refresh()
+    {
+        _loading = true;
+        var filter = new TaskFilter(
+            Status: string.IsNullOrEmpty(_filterStatus) ? null : Enum.Parse<TaskItemStatus>(_filterStatus),
+            Priority: string.IsNullOrEmpty(_filterPriority) ? null : Enum.Parse<TaskItemPriority>(_filterPriority),
+            DeliverableTo: string.IsNullOrEmpty(_filterDeliverableTo) ? null : _filterDeliverableTo,
+            WorkCategoryId: string.IsNullOrEmpty(_filterCategoryId) ? null : int.Parse(_filterCategoryId)
+        );
+        _tasks = await ListHandler.HandleAsync(filter);
+        _loading = false;
+    }
+
+    private async Task ClearFilters()
+    {
+        _filterStatus = string.Empty;
+        _filterPriority = string.Empty;
+        _filterDeliverableTo = string.Empty;
+        _filterCategoryId = string.Empty;
+        await Refresh();
+    }
+
+    private void OpenAddForm()
+    {
+        _editId = null;
+        _form = new TaskFormModel();
+        _showForm = true;
+    }
+
+    private void OpenEditForm(TaskItem task)
+    {
+        _editId = task.Id;
+        _form = new TaskFormModel
+        {
+            Title = task.Title,
+            Description = task.Description,
+            Status = task.Status,
+            Priority = task.Priority,
+            DueDate = task.DueDate,
+            AssignedBy = task.AssignedBy,
+            DeliverableTo = task.DeliverableTo,
+            WorkCategoryId = task.WorkCategoryId,
+            Notes = task.Notes
+        };
+        _showForm = true;
+    }
+
+    private void CloseForm()
+    {
+        _showForm = false;
+        _editId = null;
+    }
+
+    private async Task SaveTask()
+    {
+        if (_editId.HasValue)
+        {
+            await UpdateHandler.HandleAsync(new UpdateTaskInput(
+                Id: _editId.Value,
+                Title: _form.Title,
+                Description: _form.Description,
+                Status: _form.Status,
+                Priority: _form.Priority,
+                DueDate: _form.DueDate,
+                AssignedBy: _form.AssignedBy,
+                DeliverableTo: _form.DeliverableTo,
+                WorkCategoryId: _form.WorkCategoryId,
+                Notes: _form.Notes
+            ));
+        }
+        else
+        {
+            await AddHandler.HandleAsync(new AddTaskInput(
+                Title: _form.Title,
+                Description: _form.Description,
+                Priority: _form.Priority,
+                DueDate: _form.DueDate,
+                AssignedBy: _form.AssignedBy,
+                DeliverableTo: _form.DeliverableTo,
+                WorkCategoryId: _form.WorkCategoryId,
+                Notes: _form.Notes
+            ));
+        }
+        CloseForm();
+        await Refresh();
+    }
+
+    private void ConfirmDelete(TaskItem task) => _deleteTarget = task;
+    private void CancelDelete() => _deleteTarget = null;
+
+    private async Task ExecuteDelete()
+    {
+        if (_deleteTarget is null) return;
+        await DeleteHandler.HandleAsync(_deleteTarget.Id);
+        _deleteTarget = null;
+        await Refresh();
+    }
+
+    private static string PriorityBadge(TaskItemPriority p) => p switch
+    {
+        TaskItemPriority.Critical => "bg-danger",
+        TaskItemPriority.High => "bg-warning text-dark",
+        TaskItemPriority.Medium => "bg-info text-dark",
+        _ => "bg-secondary"
+    };
+
+    private static string StatusBadge(TaskItemStatus s) => s switch
+    {
+        TaskItemStatus.Done => "bg-success",
+        TaskItemStatus.Blocked => "bg-danger",
+        TaskItemStatus.InProgress => "bg-primary",
+        _ => "bg-secondary"
+    };
+
+    private static string FormatStatus(TaskItemStatus s) => s switch
+    {
+        TaskItemStatus.NotStarted => "Not Started",
+        TaskItemStatus.InProgress => "In Progress",
+        _ => s.ToString()
+    };
+
+    private class TaskFormModel
+    {
+        [Required(ErrorMessage = "Title is required.")]
+        public string Title { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public TaskItemStatus Status { get; set; } = TaskItemStatus.NotStarted;
+        public TaskItemPriority Priority { get; set; } = TaskItemPriority.Medium;
+        public DateOnly? DueDate { get; set; }
+        public string? AssignedBy { get; set; }
+        public string? DeliverableTo { get; set; }
+        public int? WorkCategoryId { get; set; }
+        public string? Notes { get; set; }
+    }
+}
