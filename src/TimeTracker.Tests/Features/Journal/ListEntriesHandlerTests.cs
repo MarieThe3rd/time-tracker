@@ -13,16 +13,18 @@ public class ListEntriesHandlerTests
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        return new AppDbContext(options);
+        var db = new AppDbContext(options);
+        db.Database.EnsureCreated();
+        return db;
     }
 
     private static async Task<AppDbContext> SeedAsync()
     {
         var db = CreateDb();
         db.JournalEntries.AddRange(
-            new JournalEntry { Date = new DateOnly(2026, 3, 1), Type = JournalEntryType.Success, Title = "Win 1", Body = "", CreatedAt = DateTime.UtcNow },
-            new JournalEntry { Date = new DateOnly(2026, 3, 2), Type = JournalEntryType.Challenge, Title = "Challenge 1", Body = "", CreatedAt = DateTime.UtcNow },
-            new JournalEntry { Date = new DateOnly(2026, 3, 3), Type = JournalEntryType.Learning, Title = "Learned 1", Body = "", CreatedAt = DateTime.UtcNow }
+            new JournalEntry { Date = new DateOnly(2026, 3, 1), JournalTypeId = 3, Title = "Win 1",       Body = "", CreatedAt = DateTime.UtcNow },
+            new JournalEntry { Date = new DateOnly(2026, 3, 2), JournalTypeId = 1, Title = "Challenge 1", Body = "", CreatedAt = DateTime.UtcNow },
+            new JournalEntry { Date = new DateOnly(2026, 3, 3), JournalTypeId = 2, Title = "Learned 1",   Body = "", CreatedAt = DateTime.UtcNow }
         );
         await db.SaveChangesAsync();
         return db;
@@ -40,15 +42,15 @@ public class ListEntriesHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_FilterByType_ReturnsMatchingOnly()
+    public async Task HandleAsync_FilterByJournalTypeId_ReturnsMatchingOnly()
     {
         using var db = await SeedAsync();
         var handler = new ListEntriesHandler(new SqlJournalEntryRepository(db));
 
-        var results = await handler.HandleAsync(new JournalFilter(Type: JournalEntryType.Success));
+        var results = await handler.HandleAsync(new JournalFilter(JournalTypeId: 3));
 
         Assert.Single(results);
-        Assert.All(results, e => Assert.Equal(JournalEntryType.Success, e.Type));
+        Assert.All(results, e => Assert.Equal(3, e.JournalTypeId));
     }
 
     [Fact]
@@ -82,9 +84,8 @@ public class ListEntriesHandlerTests
         using var db = await SeedAsync();
         var handler = new ListEntriesHandler(new SqlJournalEntryRepository(db));
 
-        // Only Success entries from Mar 1-2 (Win 1 is Success on Mar 1; Challenge on Mar 2 is not Success)
         var results = await handler.HandleAsync(new JournalFilter(
-            Type: JournalEntryType.Success,
+            JournalTypeId: 3,
             From: new DateOnly(2026, 3, 1),
             To: new DateOnly(2026, 3, 2)));
 
@@ -113,7 +114,6 @@ public class ListEntriesHandlerTests
 
         var results = await handler.HandleAsync(new JournalFilter());
 
-        // Dates should be descending: Mar 3, Mar 2, Mar 1
         Assert.True(results[0].Date >= results[1].Date);
         Assert.True(results[1].Date >= results[2].Date);
     }
@@ -126,8 +126,8 @@ public class ListEntriesHandlerTests
         var older = DateTime.UtcNow.AddMinutes(-10);
         var newer = DateTime.UtcNow;
         db.JournalEntries.AddRange(
-            new JournalEntry { Date = date, Type = JournalEntryType.Success, Title = "First added", Body = "", CreatedAt = older },
-            new JournalEntry { Date = date, Type = JournalEntryType.Success, Title = "Second added", Body = "", CreatedAt = newer }
+            new JournalEntry { Date = date, JournalTypeId = 3, Title = "First added",  Body = "", CreatedAt = older },
+            new JournalEntry { Date = date, JournalTypeId = 3, Title = "Second added", Body = "", CreatedAt = newer }
         );
         await db.SaveChangesAsync();
         var handler = new ListEntriesHandler(new SqlJournalEntryRepository(db));
@@ -137,4 +137,41 @@ public class ListEntriesHandlerTests
         Assert.Equal("Second added", results[0].Title);
         Assert.Equal("First added", results[1].Title);
     }
+
+    [Fact]
+    public async Task HandleAsync_FilterByCategoryId_ReturnsMatchingOnly()
+    {
+        using var db = CreateDb();
+        db.JournalEntries.AddRange(
+            new JournalEntry { Date = new DateOnly(2026, 4, 1), JournalTypeId = 1, JournalCategoryId = 10, Title = "Cat 10 entry", Body = "", CreatedAt = DateTime.UtcNow },
+            new JournalEntry { Date = new DateOnly(2026, 4, 2), JournalTypeId = 2, JournalCategoryId = 20, Title = "Cat 20 entry", Body = "", CreatedAt = DateTime.UtcNow },
+            new JournalEntry { Date = new DateOnly(2026, 4, 3), JournalTypeId = 3, JournalCategoryId = null, Title = "No cat entry", Body = "", CreatedAt = DateTime.UtcNow }
+        );
+        await db.SaveChangesAsync();
+        var handler = new ListEntriesHandler(new SqlJournalEntryRepository(db));
+
+        var results = await handler.HandleAsync(new JournalFilter(CategoryId: 10));
+
+        Assert.Single(results);
+        Assert.Equal("Cat 10 entry", results[0].Title);
+    }
+
+    [Fact]
+    public async Task HandleAsync_FilterByJournalTypeIdAndCategoryId_ReturnsIntersection()
+    {
+        using var db = CreateDb();
+        db.JournalEntries.AddRange(
+            new JournalEntry { Date = new DateOnly(2026, 4, 1), JournalTypeId = 1, JournalCategoryId = 10, Title = "Match",    Body = "", CreatedAt = DateTime.UtcNow },
+            new JournalEntry { Date = new DateOnly(2026, 4, 2), JournalTypeId = 1, JournalCategoryId = 20, Title = "No cat",   Body = "", CreatedAt = DateTime.UtcNow },
+            new JournalEntry { Date = new DateOnly(2026, 4, 3), JournalTypeId = 2, JournalCategoryId = 10, Title = "No type",  Body = "", CreatedAt = DateTime.UtcNow }
+        );
+        await db.SaveChangesAsync();
+        var handler = new ListEntriesHandler(new SqlJournalEntryRepository(db));
+
+        var results = await handler.HandleAsync(new JournalFilter(JournalTypeId: 1, CategoryId: 10));
+
+        Assert.Single(results);
+        Assert.Equal("Match", results[0].Title);
+    }
 }
+

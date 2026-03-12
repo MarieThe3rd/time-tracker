@@ -1,0 +1,122 @@
+@* TimePicker: date input + 96-slot time dropdown + free-text override *@
+<div class="d-flex gap-2 align-items-center flex-wrap">
+    <input type="date" class="form-control form-control-sm" style="width:150px"
+           value="@_dateString"
+           @onchange="OnDateChanged" />
+    <select class="form-select form-select-sm" style="width:140px"
+            value="@_dropdownValue"
+            @onchange="OnSelectChanged">
+        <option value="">— time —</option>
+        @foreach (var slot in _timeSlots)
+        {
+            <option value="@slot.MinuteOfDay">@slot.Label</option>
+        }
+    </select>
+    <span class="text-muted small">or:</span>
+    <input type="text" class="form-control form-control-sm" style="width:80px"
+           placeholder="HH:mm"
+           @bind="_customTime"
+           @bind:event="oninput"
+           @onblur="ApplyCustomTime" />
+</div>
+
+@code {
+    [Parameter] public DateTime? Value { get; set; }
+    [Parameter] public EventCallback<DateTime?> ValueChanged { get; set; }
+
+    private record TimeSlot(int MinuteOfDay, string Label);
+
+    private List<TimeSlot> _timeSlots = [];
+    private string _dateString = DateTime.Today.ToString("yyyy-MM-dd");
+    private int _timeMinutes = 0;
+    private string _dropdownValue = "0";
+    private string _customTime = "";
+
+    protected override void OnInitialized()
+    {
+        for (int h = 0; h < 24; h++)
+        {
+            for (int m = 0; m < 60; m += 15)
+            {
+                int total = h * 60 + m;
+                _timeSlots.Add(new TimeSlot(total, DateTime.Today.AddMinutes(total).ToString("h:mm tt")));
+            }
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (Value.HasValue)
+        {
+            var local = Value.Value.Kind == DateTimeKind.Utc
+                ? Value.Value.ToLocalTime()
+                : Value.Value;
+            _dateString = local.ToString("yyyy-MM-dd");
+            _timeMinutes = local.Hour * 60 + local.Minute;
+            _dropdownValue = (_timeMinutes % 15 == 0) ? _timeMinutes.ToString() : "";
+        }
+    }
+
+    private async Task OnDateChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var date))
+        {
+            _dateString = date.ToString("yyyy-MM-dd");
+            await NotifyChanged();
+        }
+    }
+
+    private async Task OnSelectChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var minutes))
+        {
+            _timeMinutes = minutes;
+            _dropdownValue = minutes.ToString();
+            _customTime = "";
+            await NotifyChanged();
+        }
+    }
+
+    private async Task ApplyCustomTime()
+    {
+        if (string.IsNullOrWhiteSpace(_customTime))
+            return;
+
+        if (TryParseTimeString(_customTime, out int minutes))
+        {
+            _timeMinutes = minutes;
+            _dropdownValue = (_timeMinutes % 15 == 0) ? _timeMinutes.ToString() : "";
+            await NotifyChanged();
+        }
+    }
+
+    private static bool TryParseTimeString(string s, out int minutes)
+    {
+        minutes = 0;
+        var match = System.Text.RegularExpressions.Regex.Match(s.Trim(), @"^(\d{1,2}):(\d{2})$");
+        if (match.Success)
+        {
+            int h = int.Parse(match.Groups[1].Value);
+            int min = int.Parse(match.Groups[2].Value);
+            if (h is >= 0 and < 24 && min is >= 0 and < 60)
+            {
+                minutes = h * 60 + min;
+                return true;
+            }
+        }
+        // Fallback for formats like "9:22 AM"
+        if (DateTime.TryParse(s, out var dt))
+        {
+            minutes = dt.Hour * 60 + dt.Minute;
+            return true;
+        }
+        return false;
+    }
+
+    private async Task NotifyChanged()
+    {
+        if (!DateTime.TryParse(_dateString, out var date))
+            return;
+        await ValueChanged.InvokeAsync(date.AddMinutes(_timeMinutes));
+    }
+}

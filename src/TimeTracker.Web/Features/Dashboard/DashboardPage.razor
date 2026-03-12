@@ -7,6 +7,24 @@
 
 <h4 class="mb-4"><i class="bi bi-speedometer2 me-2"></i>Dashboard</h4>
 
+<!-- Date range picker -->
+<div class="d-flex gap-2 align-items-center mb-3 flex-wrap">
+    <span class="text-muted small fw-semibold">Showing:</span>
+    <button class="btn btn-sm @ActiveClass("today")" @onclick='() => SetPreset("today")'>Today</button>
+    <button class="btn btn-sm @ActiveClass("week")" @onclick='() => SetPreset("week")'>This Week</button>
+    <button class="btn btn-sm @ActiveClass("month")" @onclick='() => SetPreset("month")'>This Month</button>
+    <button class="btn btn-sm @ActiveClass("custom")" @onclick='() => SetPreset("custom")'>Custom</button>
+    @if (_preset == "custom")
+    {
+        <input type="date" class="form-control form-control-sm" style="width:140px"
+               @bind="_from" @bind:after="LoadDashboard" />
+        <span class="text-muted">–</span>
+        <input type="date" class="form-control form-control-sm" style="width:140px"
+               @bind="_to" @bind:after="LoadDashboard" />
+    }
+    <span class="text-muted small ms-2">@_dateLabel</span>
+</div>
+
 @if (_data is null)
 {
     <p class="text-muted">Loading…</p>
@@ -18,8 +36,8 @@ else
         <div class="col-md-6 col-xl-3">
             <div class="card shadow-sm text-center">
                 <div class="card-body">
-                    <div class="text-muted small mb-1">Time Today</div>
-                    <div class="fs-3 fw-bold">@FormatSpan(_data.TotalToday)</div>
+                    <div class="text-muted small mb-1">Total Time</div>
+                    <div class="fs-3 fw-bold">@FormatSpan(_data.TotalTime)</div>
                 </div>
             </div>
         </div>
@@ -43,21 +61,18 @@ else
         <div class="col-md-6 col-xl-3">
             <div class="card shadow-sm text-center">
                 <div class="card-body">
-                    <div class="text-muted small mb-1">Entries Today</div>
-                    <div class="fs-3 fw-bold">@_data.RecentEntries.Count</div>
+                    <div class="text-muted small mb-1">Total Entries</div>
+                    <div class="fs-3 fw-bold">@_data.EntryCount</div>
                 </div>
             </div>
         </div>
         <div class="col-md-6 col-xl-3">
             <div class="card shadow-sm text-center h-100">
                 <div class="card-body">
-                    <div class="text-muted small mb-1">AI Time Saved This Week</div>
-                    <div class="fs-3 fw-bold">@TimeFormatHelper.FormatMinutes(_data.AiSummary.WeekTimeSavedMinutes)</div>
+                    <div class="text-muted small mb-1">AI Time Saved</div>
+                    <div class="fs-3 fw-bold">@TimeFormatHelper.FormatMinutes(_data.AiSummary.TimeSavedMinutes)</div>
                     <div class="small text-muted mt-2">
-                        Today: @TimeFormatHelper.FormatMinutes(_data.AiSummary.TodayTimeSavedMinutes)
-                    </div>
-                    <div class="small text-muted">
-                        Assisted entries: @_data.AiSummary.WeekAssistedEntries this week
+                        Assisted entries: @_data.AiSummary.AssistedEntries
                     </div>
                 </div>
             </div>
@@ -72,7 +87,7 @@ else
                 <div class="card-body d-flex align-items-center justify-content-center">
                     @if (_data.CategoryStats.Count == 0)
                     {
-                        <p class="text-muted">No completed entries today.</p>
+                        <p class="text-muted">No completed entries in this range.</p>
                     }
                     else
                     {
@@ -91,7 +106,7 @@ else
                 <div class="card-body p-0">
                     @if (_data.RecentEntries.Count == 0)
                     {
-                        <p class="text-muted p-3 mb-0">No entries yet today.</p>
+                        <p class="text-muted p-3 mb-0">No entries in this range.</p>
                     }
                     else
                     {
@@ -133,15 +148,10 @@ else
                         <ul class="list-group list-group-flush">
                             @foreach (var j in _data.RecentJournal)
                             {
-                                var (icon, color) = j.Type switch
-                                {
-                                    JournalEntryType.Challenge => ("bi-lightning-charge", "warning"),
-                                    JournalEntryType.Learning  => ("bi-mortarboard", "info"),
-                                    JournalEntryType.Success   => ("bi-trophy", "success"),
-                                    _ => ("bi-circle", "secondary")
-                                };
+                                var jIcon  = j.JournalType?.Icon  ?? "bi-journal";
+                                var jColor = j.JournalType?.Color ?? "#6c757d";
                                 <li class="list-group-item d-flex align-items-start gap-2">
-                                    <span class="badge bg-@color mt-1"><i class="bi @icon"></i></span>
+                                    <span class="badge mt-1" style="background-color:@jColor"><i class="bi @jIcon"></i></span>
                                     <div>
                                         <div class="small fw-semibold">@j.Title</div>
                                         <div class="text-muted" style="font-size:.8rem">@j.Date.ToString("MMM d")</div>
@@ -158,11 +168,46 @@ else
 
 @code {
     private DashboardData? _data;
+    private string _preset = "today";
+    private DateOnly _from = DateOnly.FromDateTime(DateTime.Today);
+    private DateOnly _to = DateOnly.FromDateTime(DateTime.Today);
+
+    private DateOnly _weekStart => GetWeekStart(DateOnly.FromDateTime(DateTime.Today));
+
+    private string _dateLabel => _preset switch
+    {
+        "today" => DateTime.Today.ToString("dddd, MMMM d"),
+        "week" => $"Week of {_weekStart:MMM d}",
+        "month" => DateTime.Today.ToString("MMMM yyyy"),
+        _ => $"{_from:MMM d} – {_to:MMM d, yyyy}"
+    };
 
     protected override async Task OnInitializedAsync()
     {
-        _data = await Handler.HandleAsync();
+        await LoadDashboard();
     }
+
+    private async Task SetPreset(string preset)
+    {
+        _preset = preset;
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        (_from, _to) = preset switch
+        {
+            "today" => (today, today),
+            "week" => (GetWeekStart(today), today),
+            "month" => (new DateOnly(today.Year, today.Month, 1), today),
+            _ => (_from, _to)
+        };
+        await LoadDashboard();
+    }
+
+    private async Task LoadDashboard()
+    {
+        _data = await Handler.HandleAsync(_from, _to);
+    }
+
+    private string ActiveClass(string preset) =>
+        _preset == preset ? "btn-primary" : "btn-outline-secondary";
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -174,6 +219,12 @@ else
                 _data.CategoryStats.Select(s => s.TotalHours).ToArray(),
                 _data.CategoryStats.Select(s => s.Color).ToArray());
         }
+    }
+
+    private static DateOnly GetWeekStart(DateOnly date)
+    {
+        var diff = ((int)date.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
+        return date.AddDays(-diff);
     }
 
     private static string FormatSpan(TimeSpan? ts)

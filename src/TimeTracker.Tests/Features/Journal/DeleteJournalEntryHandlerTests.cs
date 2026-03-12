@@ -24,7 +24,7 @@ public class DeleteJournalEntryHandlerTests
         {
             Id = 1,
             Date = DateOnly.FromDateTime(DateTime.Today),
-            Type = JournalEntryType.Success,
+            JournalTypeId = 3,
             Title = "A win",
             Body = "",
             CreatedAt = DateTime.UtcNow
@@ -45,7 +45,7 @@ public class DeleteJournalEntryHandlerTests
         {
             Id = 10,
             Date = DateOnly.FromDateTime(DateTime.Today),
-            Type = JournalEntryType.Learning,
+            JournalTypeId = 2,
             Title = "Learned something",
             Body = "Details here",
             CreatedAt = DateTime.UtcNow
@@ -75,8 +75,8 @@ public class DeleteJournalEntryHandlerTests
     {
         using var db = CreateDb();
         db.JournalEntries.AddRange(
-            new JournalEntry { Id = 20, Date = DateOnly.FromDateTime(DateTime.Today), Type = JournalEntryType.Success, Title = "Keep me", Body = "", CreatedAt = DateTime.UtcNow },
-            new JournalEntry { Id = 21, Date = DateOnly.FromDateTime(DateTime.Today), Type = JournalEntryType.Challenge, Title = "Delete me", Body = "", CreatedAt = DateTime.UtcNow }
+            new JournalEntry { Id = 20, Date = DateOnly.FromDateTime(DateTime.Today), JournalTypeId = 3, Title = "Keep me", Body = "", CreatedAt = DateTime.UtcNow },
+            new JournalEntry { Id = 21, Date = DateOnly.FromDateTime(DateTime.Today), JournalTypeId = 1, Title = "Delete me", Body = "", CreatedAt = DateTime.UtcNow }
         );
         await db.SaveChangesAsync();
 

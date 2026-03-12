@@ -14,7 +14,9 @@ public class ReportsHandlerTests
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        return new AppDbContext(options);
+        var db = new AppDbContext(options);
+        db.Database.EnsureCreated();
+        return db;
     }
 
     private static ReportsHandler CreateHandler(AppDbContext db) =>
@@ -70,8 +72,8 @@ public class ReportsHandlerTests
     {
         using var db = CreateDb();
         db.JournalEntries.AddRange(
-            new JournalEntry { Date = new DateOnly(2026, 3, 3), Type = JournalEntryType.Success, Title = "In", Body = "", CreatedAt = DateTime.UtcNow },
-            new JournalEntry { Date = new DateOnly(2026, 3, 15), Type = JournalEntryType.Success, Title = "Out", Body = "", CreatedAt = DateTime.UtcNow }
+            new JournalEntry { Date = new DateOnly(2026, 3, 3), JournalTypeId = 3, Title = "In", Body = "", CreatedAt = DateTime.UtcNow },
+            new JournalEntry { Date = new DateOnly(2026, 3, 15), JournalTypeId = 3, Title = "Out", Body = "", CreatedAt = DateTime.UtcNow }
         );
         await db.SaveChangesAsync();
 
@@ -104,8 +106,8 @@ public class ReportsHandlerTests
     {
         using var db = CreateDb();
         db.JournalEntries.AddRange(
-            new JournalEntry { Date = new DateOnly(2026, 3, 7), Type = JournalEntryType.Success, Title = "Later", Body = "", CreatedAt = DateTime.UtcNow },
-            new JournalEntry { Date = new DateOnly(2026, 3, 2), Type = JournalEntryType.Success, Title = "Earlier", Body = "", CreatedAt = DateTime.UtcNow }
+            new JournalEntry { Date = new DateOnly(2026, 3, 7), JournalTypeId = 3, Title = "Later",   Body = "", CreatedAt = DateTime.UtcNow },
+            new JournalEntry { Date = new DateOnly(2026, 3, 2), JournalTypeId = 3, Title = "Earlier", Body = "", CreatedAt = DateTime.UtcNow }
         );
         await db.SaveChangesAsync();
 

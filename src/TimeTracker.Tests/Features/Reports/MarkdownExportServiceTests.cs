@@ -48,7 +48,8 @@ public class MarkdownExportServiceTests
         var journal = new JournalEntry
         {
             Date = new DateOnly(2026, 3, 9),
-            Type = JournalEntryType.Success,
+            JournalTypeId = 3,
+            JournalType = new JournalType { Id = 3, Name = "Success", Color = "#198754", Icon = "bi-trophy", IsSystem = true },
             Title = "Shipped the feature",
             Body = "After 3 sprints, finally done.",
             CreatedAt = DateTime.UtcNow
@@ -98,9 +99,9 @@ public class MarkdownExportServiceTests
     {
         var entries = new List<JournalEntry>
         {
-            new() { Date = new DateOnly(2026, 1, 1), Type = JournalEntryType.Success,   Title = "Win",       Body = "", CreatedAt = DateTime.UtcNow },
-            new() { Date = new DateOnly(2026, 1, 2), Type = JournalEntryType.Challenge, Title = "Hard bug",  Body = "", CreatedAt = DateTime.UtcNow },
-            new() { Date = new DateOnly(2026, 1, 3), Type = JournalEntryType.Learning,  Title = "Learned X", Body = "", CreatedAt = DateTime.UtcNow },
+            new() { Date = new DateOnly(2026, 1, 1), JournalTypeId = 3, Title = "Win",       Body = "", CreatedAt = DateTime.UtcNow },
+            new() { Date = new DateOnly(2026, 1, 2), JournalTypeId = 1, Title = "Hard bug",  Body = "", CreatedAt = DateTime.UtcNow },
+            new() { Date = new DateOnly(2026, 1, 3), JournalTypeId = 2, Title = "Learned X", Body = "", CreatedAt = DateTime.UtcNow },
         };
         var md = _svc.BuildReviewExport(new DateOnly(2026, 1, 1), new DateOnly(2026, 1, 31), entries, []);
         Assert.Contains("🏆", md);
@@ -116,7 +117,7 @@ public class MarkdownExportServiceTests
     {
         var journal = new List<JournalEntry>
         {
-            new() { Date = new DateOnly(2026, 1, 3), Type = JournalEntryType.Success, Title = "Shipped UI", Body = "", CreatedAt = DateTime.UtcNow }
+            new() { Date = new DateOnly(2026, 1, 3), JournalTypeId = 3, Title = "Shipped UI", Body = "", CreatedAt = DateTime.UtcNow }
         };
         var entries = new List<TimeEntry>
         {
@@ -204,9 +205,9 @@ public class MarkdownExportServiceTests
     {
         var entries = new List<JournalEntry>
         {
-            new() { Date = new DateOnly(2026,3,9), Type = JournalEntryType.Challenge, Title = "Hard thing", Body = "", CreatedAt = DateTime.UtcNow },
-            new() { Date = new DateOnly(2026,3,9), Type = JournalEntryType.Learning,  Title = "Learned",    Body = "", CreatedAt = DateTime.UtcNow },
-            new() { Date = new DateOnly(2026,3,9), Type = JournalEntryType.Success,   Title = "Win",        Body = "", CreatedAt = DateTime.UtcNow },
+            new() { Date = new DateOnly(2026,3,9), JournalTypeId = 1, Title = "Hard thing", Body = "", CreatedAt = DateTime.UtcNow },
+            new() { Date = new DateOnly(2026,3,9), JournalTypeId = 2,  Title = "Learned",    Body = "", CreatedAt = DateTime.UtcNow },
+            new() { Date = new DateOnly(2026,3,9), JournalTypeId = 3,   Title = "Win",        Body = "", CreatedAt = DateTime.UtcNow },
         };
         var md = _svc.BuildDailyNote(new DateOnly(2026, 3, 9), [], entries, 0);
         Assert.Contains("⚡", md);
@@ -233,7 +234,7 @@ public class MarkdownExportServiceTests
     {
         var journal = new List<JournalEntry>
         {
-            new() { Date = new DateOnly(2026,3,5), Type = JournalEntryType.Success, Title = "Big win", Body = "Details", CreatedAt = DateTime.UtcNow }
+            new() { Date = new DateOnly(2026,3,5), JournalTypeId = 3, Title = "Big win", Body = "Details", CreatedAt = DateTime.UtcNow }
         };
         var md = _svc.BuildWeeklySummary(new DateOnly(2026, 3, 2), new DateOnly(2026, 3, 8), [], journal);
         Assert.Contains("### 🏆 Wins", md);
@@ -269,7 +270,7 @@ public class MarkdownExportServiceTests
     {
         var journal = new List<JournalEntry>
         {
-            new() { Date = new DateOnly(2026,3,5), Type = JournalEntryType.Challenge, Title = "Blocked", Body = "", CreatedAt = DateTime.UtcNow }
+            new() { Date = new DateOnly(2026,3,5), JournalTypeId = 1, Title = "Blocked", Body = "", CreatedAt = DateTime.UtcNow }
         };
         var md = _svc.BuildWeeklySummary(new DateOnly(2026, 3, 2), new DateOnly(2026, 3, 8), [], journal);
         Assert.Contains("### ⚡ Challenges", md);
@@ -280,7 +281,7 @@ public class MarkdownExportServiceTests
     {
         var journal = new List<JournalEntry>
         {
-            new() { Date = new DateOnly(2026,3,5), Type = JournalEntryType.Learning, Title = "New approach", Body = "", CreatedAt = DateTime.UtcNow }
+            new() { Date = new DateOnly(2026,3,5), JournalTypeId = 2, Title = "New approach", Body = "", CreatedAt = DateTime.UtcNow }
         };
         var md = _svc.BuildWeeklySummary(new DateOnly(2026, 3, 2), new DateOnly(2026, 3, 8), [], journal);
         Assert.Contains("### 🎓 Learnings", md);
@@ -300,8 +301,8 @@ public class MarkdownExportServiceTests
     {
         var entries = new List<JournalEntry>
         {
-            new() { Date = new DateOnly(2026, 3, 10), Type = JournalEntryType.Success, Title = "Later win", Body = "", CreatedAt = DateTime.UtcNow },
-            new() { Date = new DateOnly(2026, 1,  5), Type = JournalEntryType.Success, Title = "Earlier win", Body = "", CreatedAt = DateTime.UtcNow },
+            new() { Date = new DateOnly(2026, 3, 10), JournalTypeId = 3, Title = "Later win", Body = "", CreatedAt = DateTime.UtcNow },
+            new() { Date = new DateOnly(2026, 1,  5), JournalTypeId = 3, Title = "Earlier win", Body = "", CreatedAt = DateTime.UtcNow },
         };
         var md = _svc.BuildReviewExport(new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), entries, []);
         var earlierIdx = md.IndexOf("Earlier win", StringComparison.Ordinal);
@@ -473,3 +474,4 @@ public class MarkdownExportServiceTests
         Assert.DoesNotContain("search | refactoring", dataRow);
     }
 }
+

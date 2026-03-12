@@ -1,9 +1,10 @@
 @page "/reports"
 @rendermode InteractiveServer
 @using TimeTracker.Web.Features.Reports.AiUsage
+@using TimeTracker.Web.Data.Repositories
 @inject ReportsHandler Handler
 @inject MarkdownExportService MarkdownService
-@inject AppDbContext Db
+@inject IUserSettingsRepository _settingsRepo
 @inject IJSRuntime JS
 
 <PageTitle>Reports — Time Tracker</PageTitle>
@@ -267,15 +268,20 @@
 
                 @if (_tab is "daily" or "weekly" or "review")
                 {
+                    var dailyDate = _from.ToDateTime(TimeOnly.MinValue).Date;
+                    var dailyEntries = _entries
+                        .Where(e => e.StartTime.ToLocalTime().Date == dailyDate)
+                        .OrderBy(e => e.StartTime)
+                        .ToList();
+                    var dailyJournal = _journal.Where(j => j.Date == _from).ToList();
+
                     var markdown = _tab switch
                     {
                         "daily" => MarkdownService.BuildDailyNote(
                             _from,
-                            _entries.Where(e => e.StartTime.ToLocalTime().Date == _from.ToDateTime(TimeOnly.MinValue).Date).ToList(),
-                            _journal.Where(j => j.Date == _from).ToList(),
-                            _entries.Where(e => e.ProductivityRating.HasValue &&
-                                !e.IsBreak &&
-                                e.StartTime.ToLocalTime().Date == _from.ToDateTime(TimeOnly.MinValue).Date)
+                            dailyEntries,
+                            dailyJournal,
+                            dailyEntries.Where(e => e.ProductivityRating.HasValue && !e.IsBreak)
                                 .Select(e => (double)e.ProductivityRating!.Value)
                                 .DefaultIfEmpty(0).Average()),
                         "weekly" => MarkdownService.BuildWeeklySummary(_from, _to, _entries, _journal),
@@ -285,7 +291,14 @@
 
                     <div class="card shadow-sm">
                         <div class="card-header d-flex justify-content-between align-items-center">
-                            <span class="fw-semibold"><i class="bi bi-markdown me-1"></i>Markdown Preview</span>
+                            <span class="fw-semibold">
+                                @if (_tab == "daily") { <i class="bi bi-calendar-day me-1"></i> }
+                                else if (_tab == "weekly") { <i class="bi bi-calendar-week me-1"></i> }
+                                else { <i class="bi bi-clipboard-check me-1"></i> }
+                                @(_tab == "daily" ? _from.ToString("dddd, MMMM d, yyyy")
+                                  : _tab == "weekly" ? $"Weekly Summary: {_from:MMM d} – {_to:MMM d, yyyy}"
+                                  : $"Review Export: {_from:MMM d} – {_to:MMM d, yyyy}")
+                            </span>
                             <div class="d-flex gap-2">
                                 <button class="btn btn-sm btn-outline-secondary" @onclick="() => CopyToClipboard(markdown)">
                                     <i class="bi bi-clipboard me-1"></i>Copy
@@ -306,8 +319,276 @@
                             {
                                 <div class="alert @(_statusIsError ? "alert-danger" : "alert-success") py-2 mb-3">@_statusMessage</div>
                             }
-                            <pre class="bg-light p-3 rounded small"
-                                 style="white-space:pre-wrap;max-height:500px;overflow-y:auto">@markdown</pre>
+
+                            @if (_tab == "daily")
+                            {
+                                <!-- Daily Note: time entries table + journal sections -->
+                                @if (dailyEntries.Count == 0)
+                                {
+                                    <p class="text-muted">No entries for @_from.ToString("MMMM d, yyyy").</p>
+                                }
+                                else
+                                {
+                                    <h6 class="fw-semibold mb-2">Time Entries</h6>
+                                    <div class="table-responsive mb-4">
+                                        <table class="table table-sm table-hover align-middle">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>Time</th>
+                                                    <th>Category</th>
+                                                    <th>Description</th>
+                                                    <th>Duration</th>
+                                                    <th>Productivity</th>
+                                                    <th>AI?</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var e in dailyEntries)
+                                                {
+                                                    <tr>
+                                                        <td class="text-nowrap text-muted small">@e.StartTime.ToLocalTime().ToString("HH:mm")</td>
+                                                        <td>
+                                                            @if (e.WorkCategory != null)
+                                                            {
+                                                                <span class="badge" style="background-color:@e.WorkCategory.Color">@e.WorkCategory.Name</span>
+                                                            }
+                                                            else
+                                                            {
+                                                                <span class="text-muted">—</span>
+                                                            }
+                                                        </td>
+                                                        <td>@(e.Description ?? "—")</td>
+                                                        <td class="text-nowrap">@(e.Duration.HasValue ? FormatHours(e.Duration.Value.TotalHours) : "—")</td>
+                                                        <td>
+                                                            @if (e.ProductivityRating.HasValue)
+                                                            {
+                                                                <span class="text-warning">@(new string('★', e.ProductivityRating.Value))</span>
+                                                            }
+                                                            else
+                                                            {
+                                                                <span class="text-muted">—</span>
+                                                            }
+                                                        </td>
+                                                        <td>
+                                                            @if (e.AiUsed)
+                                                            {
+                                                                <span class="badge text-bg-info">AI @TimeFormatHelper.FormatMinutes(e.AiTimeSavedMinutes)</span>
+                                                            }
+                                                            else
+                                                            {
+                                                                <span class="text-muted">—</span>
+                                                            }
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                }
+
+                                @if (dailyJournal.Count > 0)
+                                {
+                                    <h6 class="fw-semibold mb-2">Journal</h6>
+                                    @foreach (var typeGroup in dailyJournal.GroupBy(j => j.JournalTypeId).OrderBy(g => g.Key))
+                                    {
+                                        var jIcon  = typeGroup.First().JournalType?.Icon  ?? "bi-journal";
+                                        var jColor = typeGroup.First().JournalType?.Color ?? "#6c757d";
+                                        var jName  = typeGroup.First().JournalType?.Name  ?? typeGroup.Key.ToString();
+                                        <div class="mb-3">
+                                            <div class="mb-2">
+                                                <span class="badge" style="background-color:@jColor"><i class="bi @jIcon me-1"></i>@jName</span>
+                                            </div>
+                                            @foreach (var j in typeGroup)
+                                            {
+                                                <div class="ms-3 mb-2">
+                                                    <div class="fw-semibold small">@j.Title</div>
+                                                    @if (!string.IsNullOrWhiteSpace(j.Body))
+                                                    {
+                                                        <div class="text-muted small">@j.Body</div>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                }
+                                else if (dailyEntries.Count == 0)
+                                {
+                                    <p class="text-muted small">No journal entries for this day.</p>
+                                }
+                            }
+                            else if (_tab == "weekly")
+                            {
+                                <!-- Weekly Summary: stats + category breakdown + day-grouped entries -->
+                                var weekTotal = _entries.Where(e => e.Duration.HasValue).Sum(e => e.Duration!.Value.TotalHours);
+                                var weekTopCat = _entries
+                                    .Where(e => e.Duration.HasValue && e.WorkCategory != null)
+                                    .GroupBy(e => e.WorkCategory!)
+                                    .Select(g => (Cat: g.Key, Hours: g.Sum(e => e.Duration!.Value.TotalHours)))
+                                    .OrderByDescending(x => x.Hours)
+                                    .FirstOrDefault();
+                                var weekCatBreakdown = _entries
+                                    .Where(e => e.Duration.HasValue && e.WorkCategory != null)
+                                    .GroupBy(e => e.WorkCategory!)
+                                    .Select(g => (Cat: g.Key, Hours: g.Sum(e => e.Duration!.Value.TotalHours)))
+                                    .OrderByDescending(x => x.Hours)
+                                    .ToList();
+
+                                <div class="row g-3 mb-4">
+                                    <div class="col-md-6">
+                                        <div class="border rounded p-3 text-center">
+                                            <div class="text-muted small mb-1">Total Hours</div>
+                                            <div class="fs-4 fw-bold">@FormatHours(weekTotal)</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="border rounded p-3 text-center">
+                                            <div class="text-muted small mb-1">Top Category</div>
+                                            <div class="fs-5 fw-bold mt-1">
+                                                @if (weekTopCat.Cat != null)
+                                                {
+                                                    <span class="badge" style="background-color:@weekTopCat.Cat.Color">@weekTopCat.Cat.Name</span>
+                                                    <span class="text-muted small ms-1">@FormatHours(weekTopCat.Hours)</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted fs-6">—</span>
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                @if (weekCatBreakdown.Count > 0)
+                                {
+                                    <h6 class="fw-semibold mb-2">By Category</h6>
+                                    @foreach (var (cat, hours) in weekCatBreakdown)
+                                    {
+                                        var pct = weekTotal > 0 ? (int)(hours / weekTotal * 100) : 0;
+                                        <div class="mb-2">
+                                            <div class="d-flex justify-content-between small mb-1">
+                                                <span><span class="badge me-1" style="background-color:@cat.Color">@cat.Name</span></span>
+                                                <span>@FormatHours(hours) (@pct%)</span>
+                                            </div>
+                                            <div class="progress" style="height:8px">
+                                                <div class="progress-bar" style="width:@pct%;background-color:@cat.Color"></div>
+                                            </div>
+                                        </div>
+                                    }
+                                    <hr />
+                                }
+
+                                <h6 class="fw-semibold mb-2">Entries by Day</h6>
+                                @if (_entries.Count == 0)
+                                {
+                                    <p class="text-muted">No entries in this range.</p>
+                                }
+                                else
+                                {
+                                    @foreach (var dayGroup in _entries
+                                        .GroupBy(e => DateOnly.FromDateTime(e.StartTime.ToLocalTime()))
+                                        .OrderBy(g => g.Key))
+                                    {
+                                        <div class="mb-3">
+                                            <div class="fw-semibold small text-muted mb-1">@dayGroup.Key.ToString("dddd, MMMM d")</div>
+                                            <div class="table-responsive">
+                                                <table class="table table-sm table-hover align-middle mb-0">
+                                                    <tbody>
+                                                        @foreach (var e in dayGroup.OrderBy(e => e.StartTime))
+                                                        {
+                                                            <tr>
+                                                                <td class="text-nowrap text-muted small" style="width:55px">@e.StartTime.ToLocalTime().ToString("HH:mm")</td>
+                                                                <td style="width:120px">
+                                                                    @if (e.WorkCategory != null)
+                                                                    {
+                                                                        <span class="badge" style="background-color:@e.WorkCategory.Color">@e.WorkCategory.Name</span>
+                                                                    }
+                                                                </td>
+                                                                <td>@(e.Description ?? "—")</td>
+                                                                <td class="text-nowrap" style="width:75px">@(e.Duration.HasValue ? FormatHours(e.Duration.Value.TotalHours) : "—")</td>
+                                                                <td style="width:50px">
+                                                                    @if (e.AiUsed)
+                                                                    {
+                                                                        <span class="badge text-bg-info">AI</span>
+                                                                    }
+                                                                </td>
+                                                            </tr>
+                                                        }
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    }
+                                }
+                            }
+                            else if (_tab == "review")
+                            {
+                                <!-- Review Export: Successes, Challenges, Learnings as card sections -->
+                                var successes  = _journal.Where(j => j.JournalTypeId == 3).OrderBy(j => j.Date).ToList();
+                                var challenges = _journal.Where(j => j.JournalTypeId == 1).OrderBy(j => j.Date).ToList();
+                                var learnings  = _journal.Where(j => j.JournalTypeId == 2).OrderBy(j => j.Date).ToList();
+
+                                @if (successes.Count == 0 && challenges.Count == 0 && learnings.Count == 0)
+                                {
+                                    <p class="text-muted">No journal entries in this range.</p>
+                                }
+
+                                @if (successes.Count > 0)
+                                {
+                                    <div class="mb-4">
+                                        <h6 class="mb-2"><span class="badge bg-success me-2"><i class="bi bi-trophy me-1"></i>Successes &amp; Wins</span></h6>
+                                        @foreach (var j in successes)
+                                        {
+                                            <div class="card shadow-sm mb-2">
+                                                <div class="card-body py-2">
+                                                    <div class="small fw-semibold">@j.Date.ToString("MMM d, yyyy") — @j.Title</div>
+                                                    @if (!string.IsNullOrWhiteSpace(j.Body))
+                                                    {
+                                                        <div class="text-muted small mt-1">@j.Body</div>
+                                                    }
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+
+                                @if (challenges.Count > 0)
+                                {
+                                    <div class="mb-4">
+                                        <h6 class="mb-2"><span class="badge bg-warning text-dark me-2"><i class="bi bi-lightning-charge me-1"></i>Challenges</span></h6>
+                                        @foreach (var j in challenges)
+                                        {
+                                            <div class="card shadow-sm mb-2">
+                                                <div class="card-body py-2">
+                                                    <div class="small fw-semibold">@j.Date.ToString("MMM d, yyyy") — @j.Title</div>
+                                                    @if (!string.IsNullOrWhiteSpace(j.Body))
+                                                    {
+                                                        <div class="text-muted small mt-1">@j.Body</div>
+                                                    }
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+
+                                @if (learnings.Count > 0)
+                                {
+                                    <div class="mb-4">
+                                        <h6 class="mb-2"><span class="badge bg-info text-dark me-2"><i class="bi bi-mortarboard me-1"></i>Learnings</span></h6>
+                                        @foreach (var j in learnings)
+                                        {
+                                            <div class="card shadow-sm mb-2">
+                                                <div class="card-body py-2">
+                                                    <div class="small fw-semibold">@j.Date.ToString("MMM d, yyyy") — @j.Title</div>
+                                                    @if (!string.IsNullOrWhiteSpace(j.Body))
+                                                    {
+                                                        <div class="text-muted small mt-1">@j.Body</div>
+                                                    }
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            }
                         </div>
                     </div>
                 }
@@ -333,7 +614,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _settings = await Db.UserSettings.FirstOrDefaultAsync() ?? new UserSettings();
+        _settings = await _settingsRepo.GetAsync();
         await ApplyPreset();
     }
 

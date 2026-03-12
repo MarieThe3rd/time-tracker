@@ -6,11 +6,13 @@ using TimeTracker.Web.Features.Timer;
 using TimeTracker.Web.Features.Timer.ManualEntry;
 using TimeTracker.Web.Features.Journal.AddEntry;
 using TimeTracker.Web.Features.Journal.ListEntries;
-using TimeTracker.Web.Features.Journal;
+using TimeTracker.Web.Features.Journal.UpdateJournalEntry;
 using TimeTracker.Web.Features.Dashboard;
 using TimeTracker.Web.Features.Reports;
 using TimeTracker.Web.Features.Reports.DailyNote;
 using TimeTracker.Web.Features.Settings;
+using TimeTracker.Web.Features.Tasks;
+using TimeTracker.Web.Features.Reminders;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,6 +25,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 // Repository implementations
 builder.Services.AddScoped<ITimeEntryRepository, SqlTimeEntryRepository>();
 builder.Services.AddScoped<IJournalEntryRepository, SqlJournalEntryRepository>();
+builder.Services.AddScoped<IJournalTypeRepository, SqlJournalTypeRepository>();
+builder.Services.AddScoped<IJournalCategoryRepository, SqlJournalCategoryRepository>();
 builder.Services.AddScoped<IWorkCategoryRepository, SqlWorkCategoryRepository>();
 builder.Services.AddScoped<IUserSettingsRepository, SqlUserSettingsRepository>();
 builder.Services.AddScoped<ITagRepository, SqlTagRepository>();
@@ -31,6 +35,7 @@ builder.Services.AddScoped<ITagRepository, SqlTagRepository>();
 builder.Services.AddScoped<AddEntryHandler>();
 builder.Services.AddScoped<ListEntriesHandler>();
 builder.Services.AddScoped<DeleteJournalEntryHandler>();
+builder.Services.AddScoped<UpdateJournalEntryHandler>();
 
 // Timer feature handlers
 builder.Services.AddSingleton<RunningTimerService>();
@@ -52,7 +57,24 @@ builder.Services.AddScoped<MarkdownExportService>();
 // Settings
 builder.Services.AddScoped<SettingsHandler>();
 
-builder.Services.AddScoped<JournalChangeService>();
+// Tasks feature
+builder.Services.AddScoped<ITaskItemRepository, SqlTaskItemRepository>();
+builder.Services.AddScoped<AddTaskHandler>();
+builder.Services.AddScoped<UpdateTaskHandler>();
+builder.Services.AddScoped<DeleteTaskHandler>();
+builder.Services.AddScoped<ListTasksHandler>();
+builder.Services.AddScoped<GetTaskHandler>();
+
+// Reminders feature
+builder.Services.AddScoped<IReminderRepository, SqlReminderRepository>();
+builder.Services.AddScoped<AddReminderHandler>();
+builder.Services.AddScoped<UpdateReminderHandler>();
+builder.Services.AddScoped<DeleteReminderHandler>();
+builder.Services.AddScoped<ListRemindersHandler>();
+builder.Services.AddScoped<SnoozeReminderHandler>();
+builder.Services.AddScoped<DismissReminderHandler>();
+
+builder.Services.AddScoped<TimeTracker.Web.Features.Journal.JournalChangeService>();
 
 var app = builder.Build();
 

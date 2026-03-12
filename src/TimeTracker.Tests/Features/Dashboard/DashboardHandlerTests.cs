@@ -13,11 +13,19 @@ public class DashboardHandlerTests
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        return new AppDbContext(options);
+        var db = new AppDbContext(options);
+        db.Database.EnsureCreated();
+        return db;
     }
 
     private static DashboardHandler CreateHandler(AppDbContext db) =>
         new DashboardHandler(new SqlTimeEntryRepository(db), new SqlJournalEntryRepository(db));
+
+    private static DateOnly GetWeekStart(DateOnly date)
+    {
+        var diff = ((int)date.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
+        return date.AddDays(-diff);
+    }
 
     [Fact]
     public async Task HandleAsync_NoEntries_ReturnsZeroTotals()
@@ -25,7 +33,7 @@ public class DashboardHandlerTests
         using var db = CreateDb();
         var data = await CreateHandler(db).HandleAsync();
 
-        Assert.Equal(TimeSpan.Zero, data.TotalToday);
+        Assert.Equal(TimeSpan.Zero, data.TotalTime);
         Assert.Equal(0, data.AvgProductivity);
         Assert.Empty(data.CategoryStats);
         Assert.Empty(data.RecentEntries);
@@ -44,7 +52,7 @@ public class DashboardHandlerTests
 
         var data = await CreateHandler(db).HandleAsync();
 
-        Assert.Equal(3, data.TotalToday.TotalHours);
+        Assert.Equal(3, data.TotalTime.TotalHours);
     }
 
     [Fact]
@@ -57,7 +65,7 @@ public class DashboardHandlerTests
 
         var data = await CreateHandler(db).HandleAsync();
 
-        Assert.Equal(TimeSpan.Zero, data.TotalToday);
+        Assert.Equal(TimeSpan.Zero, data.TotalTime);
     }
 
     [Fact]
@@ -100,12 +108,14 @@ public class DashboardHandlerTests
     public async Task HandleAsync_RecentJournal_ReturnsLatestThree()
     {
         using var db = CreateDb();
+        db.JournalTypes.Add(new JournalType { Id = 3, Name = "Success", Color = "#198754", Icon = "bi-trophy", IsSystem = true });
+        await db.SaveChangesAsync();
         for (int i = 1; i <= 5; i++)
         {
             db.JournalEntries.Add(new JournalEntry
             {
                 Date = new DateOnly(2026, 3, i),
-                Type = JournalEntryType.Success,
+                JournalTypeId = 3,
                 Title = $"Entry {i}",
                 Body = "",
                 CreatedAt = DateTime.UtcNow
@@ -195,43 +205,66 @@ public class DashboardHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_AiEntries_ReturnsTodayAndWeekAiSummary()
+    public async Task HandleAsync_WithDateRange_ScopesAiSummaryToRange()
     {
         using var db = CreateDb();
-        var today = DateTime.Today.ToUniversalTime();
-        var monday = today.AddDays(-(((int)DateTime.Today.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7));
-        var mondayIsToday = monday.Date == today.Date;
+        var rangeStart = new DateOnly(2025, 1, 6);  // Monday
+        var rangeEnd = new DateOnly(2025, 1, 10);   // Friday
+
+        var startUtc = rangeStart.ToDateTime(TimeOnly.MinValue, DateTimeKind.Local).ToUniversalTime();
 
         db.TimeEntries.AddRange(
             new TimeEntry
             {
-                StartTime = today.AddHours(1),
-                EndTime = today.AddHours(2),
+                StartTime = startUtc.AddHours(9),
+                EndTime = startUtc.AddHours(10),
                 AiUsed = true,
                 AiTimeSavedMinutes = 20
             },
             new TimeEntry
             {
-                StartTime = monday.AddHours(9),
-                EndTime = monday.AddHours(10),
+                StartTime = startUtc.AddDays(2).AddHours(9),
+                EndTime = startUtc.AddDays(2).AddHours(10),
                 AiUsed = true,
                 AiTimeSavedMinutes = 40
             },
+            // outside range — should not be counted
             new TimeEntry
             {
-                StartTime = today.AddDays(-10),
-                EndTime = today.AddDays(-10).AddHours(1),
+                StartTime = startUtc.AddDays(-10),
+                EndTime = startUtc.AddDays(-10).AddHours(1),
                 AiUsed = true,
                 AiTimeSavedMinutes = 60
             });
 
         await db.SaveChangesAsync();
 
-        var data = await CreateHandler(db).HandleAsync();
+        var data = await CreateHandler(db).HandleAsync(rangeStart, rangeEnd);
 
-        Assert.Equal(mondayIsToday ? 2 : 1, data.AiSummary.TodayAssistedEntries);
-        Assert.Equal(mondayIsToday ? 60 : 20, data.AiSummary.TodayTimeSavedMinutes);
-        Assert.Equal(2, data.AiSummary.WeekAssistedEntries);
-        Assert.Equal(60, data.AiSummary.WeekTimeSavedMinutes);
+        Assert.Equal(2, data.AiSummary.AssistedEntries);
+        Assert.Equal(60, data.AiSummary.TimeSavedMinutes);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WithDateRange_ScopesEntriesToRange()
+    {
+        using var db = CreateDb();
+        var rangeStart = new DateOnly(2025, 3, 1);
+        var rangeEnd = new DateOnly(2025, 3, 7);
+
+        var inRangeUtc = rangeStart.ToDateTime(TimeOnly.MinValue, DateTimeKind.Local).ToUniversalTime();
+        var outOfRangeUtc = rangeStart.AddDays(-1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Local).ToUniversalTime();
+
+        db.TimeEntries.AddRange(
+            new TimeEntry { StartTime = inRangeUtc.AddHours(9), EndTime = inRangeUtc.AddHours(11) },
+            new TimeEntry { StartTime = inRangeUtc.AddDays(3).AddHours(9), EndTime = inRangeUtc.AddDays(3).AddHours(10) },
+            new TimeEntry { StartTime = outOfRangeUtc.AddHours(9), EndTime = outOfRangeUtc.AddHours(10) }
+        );
+        await db.SaveChangesAsync();
+
+        var data = await CreateHandler(db).HandleAsync(rangeStart, rangeEnd);
+
+        Assert.Equal(2, data.EntryCount);
+        Assert.Equal(3.0, data.TotalTime.TotalHours);
     }
 }

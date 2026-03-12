@@ -1,7 +1,7 @@
 @page "/timer"
 @rendermode InteractiveServer
 @implements IAsyncDisposable
-@using Microsoft.EntityFrameworkCore
+@using TimeTracker.Web.Data.Repositories
 @inject StartTimerHandler StartHandler
 @inject StopTimerHandler StopHandler
 @inject GetTodayEntriesHandler TodayHandler
@@ -9,7 +9,7 @@
 @inject UpdateProductivityHandler ProductivityHandler
 @inject UpdateTimeEntryHandler UpdateEntryHandler
 @inject ManualEntryHandler ManualHandler
-@inject AppDbContext Db
+@inject IWorkCategoryRepository _workCategoryRepo
 @inject RunningTimerService TimerService
 @inject IJSRuntime JS
 
@@ -57,7 +57,7 @@
 
     <!-- Manual Entry Card -->
     <div class="col-12 col-lg-6">
-        <div class="card shadow-sm">
+        <div class="card shadow-sm" id="manual-entry-card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <span class="fw-semibold">Manual Entry</span>
                 <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleManualEntry">
@@ -68,17 +68,13 @@
             {
                 <div class="card-body">
                     <div class="row g-2 mb-2">
-                        <div class="col-6">
+                        <div class="col-12">
                             <label class="form-label">Start</label>
-                            <input type="datetime-local" class="form-control"
-                                   value="@_manualStart.ToString("yyyy-MM-ddTHH:mm")"
-                                   @onchange="OnManualStartChanged" />
+                            <TimePicker Value="@((DateTime?)_manualStart)" ValueChanged="OnManualStartPickerChanged" />
                         </div>
-                        <div class="col-6">
+                        <div class="col-12">
                             <label class="form-label">End</label>
-                            <input type="datetime-local" class="form-control"
-                                   value="@_manualEnd.ToString("yyyy-MM-ddTHH:mm")"
-                                   @onchange="OnManualEndChanged" />
+                            <TimePicker Value="@((DateTime?)_manualEnd)" ValueChanged="OnManualEndPickerChanged" />
                         </div>
                     </div>
                     <div class="mb-2">
@@ -153,7 +149,8 @@
                 <table class="table table-hover mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th>Time</th>
+                            <th>Start</th>
+                            <th>End</th>
                             <th>Category</th>
                             <th>Description</th>
                             <th>Value Added</th>
@@ -164,10 +161,41 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var entry in _todayEntries)
+                        @{
+                            var sorted = _todayEntries.OrderBy(e => e.StartTime).ToList();
+                        }
+                        @for (int i = 0; i < sorted.Count; i++)
                         {
+                            var entry = sorted[i];
+
+                            @if (i > 0 && sorted[i - 1].EndTime.HasValue)
+                            {
+                                var prevEnd = sorted[i - 1].EndTime!.Value.ToLocalTime();
+                                var currStart = entry.StartTime.ToLocalTime();
+                                var gapSpan = currStart - prevEnd;
+                                @if (gapSpan.TotalMinutes > 2)
+                                {
+                                    var gapStart = prevEnd;
+                                    var gapEnd = currStart;
+                                    var gapMins = (int)gapSpan.TotalMinutes;
+                                    <tr class="table-warning">
+                                        <td colspan="9">
+                                            <span class="text-muted fst-italic">
+                                                <i class="bi bi-clock-history me-1"></i>
+                                                Gap: @gapMins min &nbsp;·&nbsp; @gapStart.ToString("h:mm tt") – @gapEnd.ToString("h:mm tt")
+                                            </span>
+                                            <button class="btn btn-sm btn-outline-secondary ms-3"
+                                                    @onclick="() => StartManualEntryFromGap(gapStart, gapEnd)">
+                                                <i class="bi bi-plus-circle me-1"></i>Add Entry
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+
                             <tr>
-                                <td class="text-nowrap small">@entry.StartTime.ToLocalTime().ToString("HH:mm")</td>
+                                <td class="text-nowrap small">@entry.StartTime.ToLocalTime().ToString("h:mm tt")</td>
+                                <td class="text-nowrap small">@(entry.EndTime?.ToLocalTime().ToString("h:mm tt") ?? "—")</td>
                                 <td>
                                     @if (entry.WorkCategory is not null)
                                     {
@@ -216,13 +244,13 @@
         <div class="card-header fw-semibold">Edit Entry</div>
         <div class="card-body">
             <div class="row g-2 mb-2">
-                <div class="col-6">
+                <div class="col-12">
                     <label class="form-label">Start</label>
-                    <input type="datetime-local" class="form-control" @bind="_editStart" />
+                    <TimePicker Value="@((DateTime?)_editStart)" ValueChanged="v => { if (v.HasValue) _editStart = v.Value; }" />
                 </div>
-                <div class="col-6">
+                <div class="col-12">
                     <label class="form-label">End</label>
-                    <input type="datetime-local" class="form-control" @bind="_editEnd" />
+                    <TimePicker Value="@((DateTime?)_editEnd)" ValueChanged="v => { if (v.HasValue) _editEnd = v.Value; }" />
                 </div>
             </div>
             <div class="mb-2">
@@ -321,7 +349,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _categories = await Db.WorkCategories.OrderBy(c => c.Name).ToListAsync();
+        _categories = await _workCategoryRepo.GetAllAsync();
         await RefreshEntries();
         await SetManualDefaultsAsync();
 
@@ -481,24 +509,17 @@
         }
     }
 
-    private async Task SetManualDefaultsAsync()
+    private Task SetManualDefaultsAsync()
     {
-        var todayLocalStart = DateTime.Today;
-        var tomorrowLocalStart = todayLocalStart.AddDays(1);
-        var todayStartUtc = todayLocalStart.ToUniversalTime();
-        var tomorrowStartUtc = tomorrowLocalStart.ToUniversalTime();
-
-        var latestEndUtc = await Db.TimeEntries
-            .Where(e => e.EndTime.HasValue
-                && e.EndTime.Value >= todayStartUtc
-                && e.EndTime.Value < tomorrowStartUtc)
+        var latestEnd = _todayEntries
+            .Where(e => e.EndTime.HasValue)
             .OrderByDescending(e => e.EndTime)
             .Select(e => e.EndTime)
-            .FirstOrDefaultAsync();
+            .FirstOrDefault();
 
-        if (latestEndUtc.HasValue)
+        if (latestEnd.HasValue)
         {
-            _manualStart = RoundToNearest15Min(latestEndUtc.Value.ToLocalTime());
+            _manualStart = RoundToNearest15Min(latestEnd.Value.ToLocalTime());
         }
         else
         {
@@ -507,25 +528,37 @@
 
         _manualEnd = _manualStart.AddMinutes(30);
         _manualEndAutoSet = true;
+        return Task.CompletedTask;
     }
 
-    private void OnManualStartChanged(ChangeEventArgs e)
+    private void OnManualStartPickerChanged(DateTime? value)
     {
-        if (DateTime.TryParse(e.Value?.ToString(), out var newStart))
+        if (value.HasValue)
         {
-            _manualStart = newStart;
+            _manualStart = value.Value;
             if (_manualEndAutoSet)
                 _manualEnd = _manualStart.AddMinutes(30);
         }
     }
 
-    private void OnManualEndChanged(ChangeEventArgs e)
+    private void OnManualEndPickerChanged(DateTime? value)
     {
-        if (DateTime.TryParse(e.Value?.ToString(), out var newEnd))
+        if (value.HasValue)
         {
-            _manualEnd = newEnd;
+            _manualEnd = value.Value;
             _manualEndAutoSet = false;
         }
+    }
+
+    private async Task StartManualEntryFromGap(DateTime gapStart, DateTime gapEnd)
+    {
+        _showManual = true;
+        _manualStart = gapStart;
+        _manualEnd = gapEnd;
+        _manualEndAutoSet = false;
+        StateHasChanged();
+        await Task.Delay(50);
+        await JS.InvokeVoidAsync("eval", "document.getElementById('manual-entry-card').scrollIntoView({behavior:'smooth'})");
     }
 
     private static DateTime RoundToNearest15Min(DateTime value)

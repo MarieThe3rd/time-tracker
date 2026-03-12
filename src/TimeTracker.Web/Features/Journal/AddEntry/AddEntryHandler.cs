@@ -4,11 +4,12 @@ using TimeTracker.Web.Data.Repositories;
 namespace TimeTracker.Web.Features.Journal.AddEntry;
 
 public record AddJournalEntryInput(
-    JournalEntryType Type,
+    int JournalTypeId,
     string Title,
     string Body,
     DateOnly? Date = null,
-    int? LinkedTimeEntryId = null);
+    int? LinkedTimeEntryId = null,
+    int? JournalCategoryId = null);
 
 public class AddEntryHandler(IJournalEntryRepository journalRepo)
 {
@@ -19,7 +20,8 @@ public class AddEntryHandler(IJournalEntryRepository journalRepo)
         var entry = new JournalEntry
         {
             Date = input.Date ?? DateOnly.FromDateTime(DateTime.Today),
-            Type = input.Type,
+            JournalTypeId = input.JournalTypeId,
+            JournalCategoryId = input.JournalCategoryId,
             Title = input.Title.Trim(),
             Body = input.Body.Trim(),
             LinkedTimeEntryId = input.LinkedTimeEntryId,

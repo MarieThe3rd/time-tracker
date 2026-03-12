@@ -92,14 +92,15 @@ public class MarkdownExportService
             sb.AppendLine();
             foreach (var j in journalEntries)
             {
-                var icon = j.Type switch
+                var icon = j.JournalTypeId switch
                 {
-                    JournalEntryType.Challenge => "⚡",
-                    JournalEntryType.Learning => "🎓",
-                    JournalEntryType.Success => "🏆",
+                    1 => "⚡",
+                    2 => "🎓",
+                    3 => "🏆",
                     _ => "•"
                 };
-                sb.AppendLine($"#### {icon} {j.Type}: {j.Title}");
+                var typeName = j.JournalType?.Name ?? j.JournalTypeId.ToString();
+                sb.AppendLine($"#### {icon} {typeName}: {j.Title}");
                 if (!string.IsNullOrWhiteSpace(j.Body))
                     sb.AppendLine(j.Body);
                 sb.AppendLine();
@@ -165,7 +166,7 @@ public class MarkdownExportService
         AppendAiUsageSummary(sb, aiEntries);
 
         // Wins
-        var wins = journalEntries.Where(j => j.Type == JournalEntryType.Success).ToList();
+        var wins = journalEntries.Where(j => j.JournalTypeId == 3).ToList();
         if (wins.Count > 0)
         {
             sb.AppendLine("### 🏆 Wins");
@@ -180,7 +181,7 @@ public class MarkdownExportService
         }
 
         // Challenges
-        var challenges = journalEntries.Where(j => j.Type == JournalEntryType.Challenge).ToList();
+        var challenges = journalEntries.Where(j => j.JournalTypeId == 1).ToList();
         if (challenges.Count > 0)
         {
             sb.AppendLine("### ⚡ Challenges");
@@ -195,7 +196,7 @@ public class MarkdownExportService
         }
 
         // Learnings
-        var learnings = journalEntries.Where(j => j.Type == JournalEntryType.Learning).ToList();
+        var learnings = journalEntries.Where(j => j.JournalTypeId == 2).ToList();
         if (learnings.Count > 0)
         {
             sb.AppendLine("### 🎓 Learnings");
@@ -233,9 +234,9 @@ public class MarkdownExportService
         sb.AppendLine($"## 📋 Review Export: {from:MMM d} – {to:MMM d, yyyy}");
         sb.AppendLine();
 
-        void WriteSection(string heading, JournalEntryType type, string icon)
+        void WriteSection(string heading, int journalTypeId, string icon)
         {
-            var items = journalEntries.Where(j => j.Type == type)
+            var items = journalEntries.Where(j => j.JournalTypeId == journalTypeId)
                                       .OrderBy(j => j.Date)
                                       .ToList();
             if (items.Count == 0) return;
@@ -250,9 +251,9 @@ public class MarkdownExportService
             }
         }
 
-        WriteSection("Successes & Wins", JournalEntryType.Success, "🏆");
-        WriteSection("Challenges", JournalEntryType.Challenge, "⚡");
-        WriteSection("Learnings", JournalEntryType.Learning, "🎓");
+        WriteSection("Successes & Wins", 3, "🏆");
+        WriteSection("Challenges", 1, "⚡");
+        WriteSection("Learnings", 2, "🎓");
         AppendAiUsageSummary(sb, aiEntries);
 
         return sb.ToString();

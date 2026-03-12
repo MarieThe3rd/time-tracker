@@ -24,12 +24,12 @@ public class AddEntryHandlerTests
     {
         using var db = CreateDb();
         var handler = CreateHandler(db);
-        var input = new AddJournalEntryInput(JournalEntryType.Success, "Shipped the feature", "It was great");
+        var input = new AddJournalEntryInput(JournalTypeId: 3, "Shipped the feature", "It was great");
 
         var entry = await handler.HandleAsync(input);
 
         Assert.NotNull(entry);
-        Assert.Equal(JournalEntryType.Success, entry.Type);
+        Assert.Equal(3, entry.JournalTypeId);
         Assert.Equal("Shipped the feature", entry.Title);
         Assert.Equal(1, await db.JournalEntries.CountAsync());
     }
@@ -39,7 +39,7 @@ public class AddEntryHandlerTests
     {
         using var db = CreateDb();
         var handler = CreateHandler(db);
-        var input = new AddJournalEntryInput(JournalEntryType.Learning, "Learned something", "");
+        var input = new AddJournalEntryInput(JournalTypeId: 2, "Learned something", "");
 
         var entry = await handler.HandleAsync(input);
 
@@ -51,7 +51,7 @@ public class AddEntryHandlerTests
     {
         using var db = CreateDb();
         var handler = CreateHandler(db);
-        var input = new AddJournalEntryInput(JournalEntryType.Challenge, "  Title  ", "  Body  ");
+        var input = new AddJournalEntryInput(JournalTypeId: 1, "  Title  ", "  Body  ");
 
         var entry = await handler.HandleAsync(input);
 
@@ -64,7 +64,7 @@ public class AddEntryHandlerTests
     {
         using var db = CreateDb();
         var handler = CreateHandler(db);
-        var input = new AddJournalEntryInput(JournalEntryType.Success, "", "body");
+        var input = new AddJournalEntryInput(JournalTypeId: 3, "", "body");
 
         await Assert.ThrowsAsync<ArgumentException>(() => handler.HandleAsync(input));
     }
@@ -74,24 +74,24 @@ public class AddEntryHandlerTests
     {
         using var db = CreateDb();
         var handler = CreateHandler(db);
-        var input = new AddJournalEntryInput(JournalEntryType.Success, "   ", "body");
+        var input = new AddJournalEntryInput(JournalTypeId: 3, "   ", "body");
 
         await Assert.ThrowsAsync<ArgumentException>(() => handler.HandleAsync(input));
     }
 
     [Theory]
-    [InlineData(JournalEntryType.Challenge)]
-    [InlineData(JournalEntryType.Learning)]
-    [InlineData(JournalEntryType.Success)]
-    public async Task HandleAsync_AllJournalTypes_Persist(JournalEntryType type)
+    [InlineData(1)] // Challenge
+    [InlineData(2)] // Learning
+    [InlineData(3)] // Success
+    public async Task HandleAsync_AllSystemJournalTypeIds_Persist(int journalTypeId)
     {
         using var db = CreateDb();
         var handler = CreateHandler(db);
-        var input = new AddJournalEntryInput(type, "Some title", "Some body");
+        var input = new AddJournalEntryInput(journalTypeId, "Some title", "Some body");
 
         var entry = await handler.HandleAsync(input);
 
-        Assert.Equal(type, entry.Type);
+        Assert.Equal(journalTypeId, entry.JournalTypeId);
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public class AddEntryHandlerTests
         using var db = CreateDb();
         var handler = CreateHandler(db);
         var explicitDate = new DateOnly(2025, 12, 31);
-        var input = new AddJournalEntryInput(JournalEntryType.Success, "Year-end win", "", Date: explicitDate);
+        var input = new AddJournalEntryInput(JournalTypeId: 3, "Year-end win", "", Date: explicitDate);
 
         var entry = await handler.HandleAsync(input);
 
@@ -121,7 +121,7 @@ public class AddEntryHandlerTests
 
         var handler = CreateHandler(db);
         var input = new AddJournalEntryInput(
-            JournalEntryType.Success, "Good session", "Details", LinkedTimeEntryId: 99);
+            JournalTypeId: 3, "Good session", "Details", LinkedTimeEntryId: 99);
 
         var entry = await handler.HandleAsync(input);
 
@@ -134,11 +134,23 @@ public class AddEntryHandlerTests
         using var db = CreateDb();
         var handler = CreateHandler(db);
         var before = DateTime.UtcNow.AddSeconds(-1);
-        var input = new AddJournalEntryInput(JournalEntryType.Learning, "Test", "Body");
+        var input = new AddJournalEntryInput(JournalTypeId: 2, "Test", "Body");
 
         var entry = await handler.HandleAsync(input);
 
         Assert.True(entry.CreatedAt >= before);
         Assert.True(entry.CreatedAt <= DateTime.UtcNow.AddSeconds(1));
+    }
+
+    [Fact]
+    public async Task HandleAsync_JournalCategoryId_Persisted()
+    {
+        using var db = CreateDb();
+        var handler = CreateHandler(db);
+        var input = new AddJournalEntryInput(JournalTypeId: 3, "Categorized win", "", JournalCategoryId: 7);
+
+        var entry = await handler.HandleAsync(input);
+
+        Assert.Equal(7, entry.JournalCategoryId);
     }
 }

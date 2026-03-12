@@ -6,14 +6,13 @@ namespace TimeTracker.Web.Features.Dashboard;
 public record CategoryStat(string Name, string Color, double TotalHours);
 
 public record AiDashboardSummary(
-    int TodayAssistedEntries,
-    int TodayTimeSavedMinutes,
-    int WeekAssistedEntries,
-    int WeekTimeSavedMinutes);
+    int AssistedEntries,
+    int TimeSavedMinutes);
 
 public record DashboardData(
-    TimeSpan TotalToday,
+    TimeSpan TotalTime,
     double AvgProductivity,
+    int EntryCount,
     List<CategoryStat> CategoryStats,
     List<TimeEntry> RecentEntries,
     List<JournalEntry> RecentJournal,
@@ -21,27 +20,26 @@ public record DashboardData(
 
 public class DashboardHandler(ITimeEntryRepository timeEntryRepo, IJournalEntryRepository journalRepo)
 {
-    public async Task<DashboardData> HandleAsync()
+    public Task<DashboardData> HandleAsync()
     {
-        var todayLocal = DateOnly.FromDateTime(DateTime.Now);
-        var todayEndUtc = todayLocal.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Local).ToUniversalTime();
-        var weekStart = GetWeekStart(DateOnly.FromDateTime(DateTime.Today))
-            .ToDateTime(TimeOnly.MinValue)
-            .ToUniversalTime();
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        return HandleAsync(today, today);
+    }
 
-        var allTodayEntries = await timeEntryRepo.GetTodayAsync(includeCategory: true);
-        var todayEntries = allTodayEntries.Where(e => e.EndTime != null).ToList();
+    public async Task<DashboardData> HandleAsync(DateOnly from, DateOnly to)
+    {
+        var fromUtc = from.ToDateTime(TimeOnly.MinValue, DateTimeKind.Local).ToUniversalTime();
+        var toUtc = to.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Local).ToUniversalTime();
 
-        var weekEntries = await timeEntryRepo.GetByDateRangeAsync(weekStart, todayEndUtc);
-        var weekAiEntries = weekEntries.Where(e => e.AiUsed).ToList();
+        var entries = await timeEntryRepo.GetByDateRangeAsync(fromUtc, toUtc, includeCategory: true);
 
-        var total = todayEntries.Aggregate(TimeSpan.Zero,
+        var total = entries.Aggregate(TimeSpan.Zero,
             (acc, e) => acc + (e.Duration ?? TimeSpan.Zero));
 
-        var rated = todayEntries.Where(e => e.ProductivityRating.HasValue).ToList();
+        var rated = entries.Where(e => e.ProductivityRating.HasValue).ToList();
         var avgProd = rated.Count > 0 ? rated.Average(e => e.ProductivityRating!.Value) : 0;
 
-        var stats = todayEntries
+        var stats = entries
             .Where(e => e.WorkCategory != null)
             .GroupBy(e => e.WorkCategory!)
             .Select(g => new CategoryStat(
@@ -51,21 +49,19 @@ public class DashboardHandler(ITimeEntryRepository timeEntryRepo, IJournalEntryR
             .OrderByDescending(s => s.TotalHours)
             .ToList();
 
-        var recent = todayEntries
+        var recent = entries
             .OrderByDescending(e => e.StartTime)
             .Take(5)
             .ToList();
 
         var journal = await journalRepo.GetRecentAsync(3);
 
-        var todayAiEntries = todayEntries.Where(e => e.AiUsed).ToList();
+        var aiEntries = entries.Where(e => e.AiUsed).ToList();
         var aiSummary = new AiDashboardSummary(
-            todayAiEntries.Count,
-            todayAiEntries.Sum(e => e.AiTimeSavedMinutes ?? 0),
-            weekAiEntries.Count,
-            weekAiEntries.Sum(e => e.AiTimeSavedMinutes ?? 0));
+            aiEntries.Count,
+            aiEntries.Sum(e => e.AiTimeSavedMinutes ?? 0));
 
-        return new DashboardData(total, avgProd, stats, recent, journal, aiSummary);
+        return new DashboardData(total, avgProd, entries.Count, stats, recent, journal, aiSummary);
     }
 
     private static DateOnly GetWeekStart(DateOnly date)

@@ -1,6 +1,7 @@
 @rendermode InteractiveServer
 @inject AddEntryHandler AddHandler
 @inject TimeTracker.Web.Features.Journal.JournalChangeService JournalChangeSvc
+@inject TimeTracker.Web.Data.Repositories.IJournalTypeRepository JournalTypeRepo
 
 <!-- FAB trigger button — fixed bottom right -->
 <div style="position:fixed;bottom:1.5rem;right:1.5rem;z-index:1050">
@@ -25,14 +26,15 @@
         <!-- Type selector -->
         <div class="mb-3">
             <label class="form-label fw-semibold">Type</label>
-            <div class="d-flex gap-2">
-                @foreach (var type in Enum.GetValues<JournalEntryType>())
+            <div class="d-flex gap-2 flex-wrap">
+                @foreach (var type in _journalTypes)
                 {
                     var t = type;
-                    var (icon, color) = TypeStyle(t);
-                    <button class="btn btn-sm @(_type == t ? $"btn-{color}" : $"btn-outline-{color}")"
-                            @onclick="() => _type = t">
-                        <i class="bi @icon me-1"></i>@t
+                    var isSelected = _journalTypeId == t.Id;
+                    <button class="btn btn-sm @(isSelected ? "btn-primary" : "btn-outline-secondary")"
+                            style="@(isSelected ? $"background-color:{t.Color};border-color:{t.Color}" : $"color:{t.Color};border-color:{t.Color}")"
+                            @onclick="() => _journalTypeId = t.Id">
+                        <i class="bi @t.Icon me-1"></i>@t.Name
                     </button>
                 }
             </div>
@@ -55,7 +57,7 @@
 
         @if (_saved)
         {
-            <div class="alert alert-success py-2">✓ Saved!</div>
+            <div class="alert alert-success py-2">&#10003; Saved!</div>
         }
         @if (_error is not null)
         {
@@ -63,7 +65,7 @@
         }
 
         <button class="btn btn-primary w-100" @onclick="Save" disabled="@_saving">
-            @(_saving ? "Saving…" : "Save Entry")
+            @(_saving ? "Saving..." : "Save Entry")
         </button>
     </div>
 </div>
@@ -80,10 +82,18 @@
     private bool _saved;
     private string? _error;
 
-    private JournalEntryType _type = JournalEntryType.Success;
+    private List<JournalType> _journalTypes = [];
+    private int _journalTypeId = 3; // default: Success
     private string _title = string.Empty;
     private string _body = string.Empty;
     private DateOnly _date = DateOnly.FromDateTime(DateTime.Today);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _journalTypes = await JournalTypeRepo.GetAllAsync();
+        if (_journalTypes.Count > 0)
+            _journalTypeId = _journalTypes.First(t => t.Name == "Success")?.Id ?? _journalTypes[0].Id;
+    }
 
     public void Open()  { _open = true;  _saved = false; _error = null; }
     public void Close() { _open = false; }
@@ -99,7 +109,7 @@
         _saving = true;
         try
         {
-            await AddHandler.HandleAsync(new AddJournalEntryInput(_type, _title, _body, _date));
+            await AddHandler.HandleAsync(new AddJournalEntryInput(_journalTypeId, _title, _body, _date));
             _saved = true;
             JournalChangeSvc.NotifyEntryAdded();
             _title = string.Empty;
@@ -107,12 +117,4 @@
         }
         finally { _saving = false; }
     }
-
-    private static (string icon, string color) TypeStyle(JournalEntryType t) => t switch
-    {
-        JournalEntryType.Challenge => ("bi-lightning-charge", "warning"),
-        JournalEntryType.Learning  => ("bi-mortarboard", "info"),
-        JournalEntryType.Success   => ("bi-trophy", "success"),
-        _ => ("bi-circle", "secondary")
-    };
 }

@@ -4,6 +4,7 @@
 @inject ListEntriesHandler ListHandler
 @inject DeleteJournalEntryHandler DeleteHandler
 @inject TimeTracker.Web.Features.Journal.JournalChangeService JournalChangeSvc
+@inject TimeTracker.Web.Data.Repositories.IJournalTypeRepository JournalTypeRepo
 
 <PageTitle>Journal — Time Tracker</PageTitle>
 
@@ -17,11 +18,11 @@
         <div class="row g-2 align-items-end">
             <div class="col-auto">
                 <label class="form-label">Type</label>
-                <select class="form-select" @bind="_filterType" @bind:after="Refresh">
+                <select class="form-select" @bind="_filterTypeId" @bind:after="Refresh">
                     <option value="">All types</option>
-                    @foreach (var t in Enum.GetValues<JournalEntryType>())
+                    @foreach (var t in _journalTypes)
                     {
-                        <option value="@t">@t</option>
+                        <option value="@t.Id">@t.Name</option>
                     }
                 </select>
             </div>
@@ -55,11 +56,13 @@ else
         <h6 class="text-muted mt-3 mb-2">@group.Key.ToString("dddd, MMMM d, yyyy")</h6>
         @foreach (var entry in group)
         {
-            var (icon, color) = TypeStyle(entry.Type);
+            var entryIcon  = entry.JournalType?.Icon  ?? "bi-journal";
+            var entryColor = entry.JournalType?.Color ?? "#6c757d";
+            var entryName  = entry.JournalType?.Name  ?? entry.JournalTypeId.ToString();
             <div class="card shadow-sm mb-2">
                 <div class="card-body py-2">
                     <div class="d-flex align-items-start gap-2">
-                        <span class="badge bg-@color mt-1"><i class="bi @icon me-1"></i>@entry.Type</span>
+                        <span class="badge mt-1" style="background-color:@entryColor"><i class="bi @entryIcon me-1"></i>@entryName</span>
                         <div class="flex-grow-1">
                             <div class="fw-semibold">@entry.Title</div>
                             @if (!string.IsNullOrWhiteSpace(entry.Body))
@@ -80,13 +83,15 @@ else
 
 @code {
     private List<JournalEntry> _entries = [];
-    private string _filterType = string.Empty;
+    private List<JournalType> _journalTypes = [];
+    private string _filterTypeId = string.Empty;
     private DateOnly? _from;
     private DateOnly? _to;
 
     protected override async Task OnInitializedAsync()
     {
         JournalChangeSvc.EntryAdded += OnEntryAdded;
+        _journalTypes = await JournalTypeRepo.GetAllAsync();
         await Refresh();
     }
 
@@ -101,8 +106,8 @@ else
 
     private async Task Refresh()
     {
-        JournalEntryType? type = Enum.TryParse<JournalEntryType>(_filterType, out var t) ? t : null;
-        var filter = new JournalFilter(type, _from, _to);
+        int? typeId = int.TryParse(_filterTypeId, out var tid) ? tid : null;
+        var filter = new JournalFilter(typeId, _from, _to);
         _entries = await ListHandler.HandleAsync(filter);
     }
 
@@ -114,17 +119,9 @@ else
 
     private async Task ClearFilters()
     {
-        _filterType = string.Empty;
+        _filterTypeId = string.Empty;
         _from = null;
         _to = null;
         await Refresh();
     }
-
-    private static (string icon, string color) TypeStyle(JournalEntryType t) => t switch
-    {
-        JournalEntryType.Challenge => ("bi-lightning-charge", "warning"),
-        JournalEntryType.Learning  => ("bi-mortarboard", "info"),
-        JournalEntryType.Success   => ("bi-trophy", "success"),
-        _ => ("bi-circle", "secondary")
-    };
 }
