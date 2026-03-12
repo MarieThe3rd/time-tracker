@@ -16,9 +16,15 @@ public record DashboardData(
     List<CategoryStat> CategoryStats,
     List<TimeEntry> RecentEntries,
     List<JournalEntry> RecentJournal,
-    AiDashboardSummary AiSummary);
+    AiDashboardSummary AiSummary,
+    int OverdueTaskCount,
+    int UpcomingReminderCount);
 
-public class DashboardHandler(ITimeEntryRepository timeEntryRepo, IJournalEntryRepository journalRepo)
+public class DashboardHandler(
+    ITimeEntryRepository timeEntryRepo,
+    IJournalEntryRepository journalRepo,
+    ITaskItemRepository taskRepo,
+    IReminderRepository reminderRepo)
 {
     public Task<DashboardData> HandleAsync()
     {
@@ -61,7 +67,11 @@ public class DashboardHandler(ITimeEntryRepository timeEntryRepo, IJournalEntryR
             aiEntries.Count,
             aiEntries.Sum(e => e.AiTimeSavedMinutes ?? 0));
 
-        return new DashboardData(total, avgProd, entries.Count, stats, recent, journal, aiSummary);
+        var overdueCount = await taskRepo.GetOverdueCountAsync();
+        var upcomingCount = await reminderRepo.GetUpcomingCountAsync(TimeSpan.FromHours(24));
+
+        return new DashboardData(total, avgProd, entries.Count, stats, recent, journal, aiSummary,
+            overdueCount, upcomingCount);
     }
 
     private static DateOnly GetWeekStart(DateOnly date)

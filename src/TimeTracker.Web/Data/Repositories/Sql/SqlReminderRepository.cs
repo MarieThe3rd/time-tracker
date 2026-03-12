@@ -22,6 +22,16 @@ public class SqlReminderRepository(AppDbContext db) : IReminderRepository
         return await query.OrderBy(r => r.RemindOn).ToListAsync();
     }
 
+    public async Task<int> GetUpcomingCountAsync(TimeSpan window)
+    {
+        var now = DateTime.UtcNow;
+        var cutoff = now + window;
+        return await db.Reminders
+            .CountAsync(r => (r.Status == ReminderStatus.Active || r.Status == ReminderStatus.Snoozed)
+                          && r.RemindOn >= now
+                          && r.RemindOn <= cutoff);
+    }
+
     public async Task<Reminder> AddAsync(Reminder reminder)
     {
         db.Reminders.Add(reminder);

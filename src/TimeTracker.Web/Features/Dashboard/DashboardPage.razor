@@ -77,6 +77,25 @@ else
                 </div>
             </div>
         </div>
+        <div class="col-md-6 col-xl-3">
+            <div class="card shadow-sm text-center">
+                <div class="card-body">
+                    <div class="text-muted small mb-1">Overdue Tasks</div>
+                    <div class="fs-3 fw-bold @(_data.OverdueTaskCount > 0 ? "text-danger" : "")">
+                        @_data.OverdueTaskCount
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-3">
+            <div class="card shadow-sm text-center">
+                <div class="card-body">
+                    <div class="text-muted small mb-1">Upcoming Reminders</div>
+                    <div class="fs-3 fw-bold">@_data.UpcomingReminderCount</div>
+                    <div class="small text-muted mt-2">Next 24 hours</div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="row g-4">

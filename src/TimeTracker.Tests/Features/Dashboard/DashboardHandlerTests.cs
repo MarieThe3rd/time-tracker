@@ -17,7 +17,11 @@ public class DashboardHandlerTests
     }
 
     private static DashboardHandler CreateHandler(AppDbContext db) =>
-        new DashboardHandler(new SqlTimeEntryRepository(db), new SqlJournalEntryRepository(db));
+        new DashboardHandler(
+            new SqlTimeEntryRepository(db),
+            new SqlJournalEntryRepository(db),
+            new SqlTaskItemRepository(db),
+            new SqlReminderRepository(db));
 
     private static DateOnly GetWeekStart(DateOnly date)
     {

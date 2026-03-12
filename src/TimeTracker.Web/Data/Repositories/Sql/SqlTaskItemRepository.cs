@@ -40,6 +40,15 @@ public class SqlTaskItemRepository(AppDbContext db) : ITaskItemRepository
         return await query.OrderBy(t => t.DueDate).ThenBy(t => t.Priority).ToListAsync();
     }
 
+    public async Task<int> GetOverdueCountAsync()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        return await db.TaskItems
+            .CountAsync(t => t.DueDate.HasValue
+                          && t.DueDate.Value < today
+                          && t.Status != TaskItemStatus.Done);
+    }
+
     public async Task<TaskItem> AddAsync(TaskItem task)
     {
         db.TaskItems.Add(task);

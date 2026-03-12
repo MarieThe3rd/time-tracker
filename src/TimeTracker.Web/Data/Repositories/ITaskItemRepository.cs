@@ -12,6 +12,7 @@ public interface ITaskItemRepository
         string? deliverableTo = null,
         int? workCategoryId = null,
         bool includeCategory = false);
+    Task<int> GetOverdueCountAsync();
     Task<TaskItem> AddAsync(TaskItem task);
     Task UpdateAsync(TaskItem task);
     Task DeleteAsync(int id);
