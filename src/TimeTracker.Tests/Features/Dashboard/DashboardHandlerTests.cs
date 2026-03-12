@@ -108,8 +108,6 @@ public class DashboardHandlerTests
     public async Task HandleAsync_RecentJournal_ReturnsLatestThree()
     {
         using var db = CreateDb();
-        db.JournalTypes.Add(new JournalType { Id = 3, Name = "Success", Color = "#198754", Icon = "bi-trophy", IsSystem = true });
-        await db.SaveChangesAsync();
         for (int i = 1; i <= 5; i++)
         {
             db.JournalEntries.Add(new JournalEntry
