@@ -23,18 +23,31 @@
                     <div class="form-text">Full path to the root of your Obsidian vault on this machine.</div>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">Daily Notes Subfolder</label>
-                    <input class="form-control font-monospace"
+                    <label class="form-label" for="dailyNotesSubfolder">Daily Notes Subfolder</label>
+                    <input id="dailyNotesSubfolder" class="form-control font-monospace"
                            @bind="_settings.DailyNotesSubfolder" />
                     <div class="form-text">Relative to vault root. Default: <code>Journal\Daily</code></div>
+                    @if (!string.IsNullOrWhiteSpace(_settings.VaultRootPath))
+                    {
+                        <div class="alert alert-light py-2 small mt-2">
+                            <strong>Resolved path:</strong><br />
+                            <code>@Path.Combine(_settings.VaultRootPath, _settings.DailyNotesSubfolder, "YYYY-MM-DD.md")</code>
+                        </div>
+                    }
                 </div>
-                @if (!string.IsNullOrWhiteSpace(_settings.VaultRootPath))
-                {
-                    <div class="alert alert-light py-2 small">
-                        <strong>Resolved path:</strong><br />
-                        <code>@Path.Combine(_settings.VaultRootPath, _settings.DailyNotesSubfolder, "YYYY-MM-DD.md")</code>
-                    </div>
-                }
+                <div class="mb-3">
+                    <label class="form-label" for="weeklyNotesSubfolder">Weekly Notes Subfolder</label>
+                    <input id="weeklyNotesSubfolder" class="form-control font-monospace"
+                           @bind="_settings.WeeklyNotesSubfolder" />
+                    <div class="form-text">Relative to vault root. Default: <code>Journal\Weekly</code></div>
+                    @if (!string.IsNullOrWhiteSpace(_settings.VaultRootPath))
+                    {
+                        <div class="alert alert-light py-2 small mt-2">
+                            <strong>Resolved path:</strong><br />
+                            <code>@Path.Combine(_settings.VaultRootPath, _settings.WeeklyNotesSubfolder, "YYYY-W00.md")</code>
+                        </div>
+                    }
+                </div>
                 @if (_settingsSaved)
                 {
                     <div class="alert alert-success py-2">✓ Settings saved.</div>

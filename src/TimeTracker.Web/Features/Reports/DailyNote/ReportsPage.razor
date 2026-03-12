@@ -314,6 +314,12 @@
                                         <i class="bi bi-journal-arrow-up me-1"></i>Push to Obsidian
                                     </button>
                                 }
+                                else if (_tab == "weekly")
+                                {
+                                    <button class="btn btn-sm btn-success" @onclick="() => PushWeeklyToObsidian(markdown)">
+                                        <i class="bi bi-journal-arrow-up me-1"></i>Push to Obsidian
+                                    </button>
+                                }
                             </div>
                         </div>
                         <div class="card-body">
@@ -699,6 +705,21 @@
         {
             var (path, appended) = await Handler.PushDailyNoteAsync(_from, markdown, _settings);
             ShowStatus($"{(appended ? "Appended to" : "Saved to")} {path}", false);
+        }
+        catch (Exception ex)
+        {
+            ShowStatus(ex.Message, true);
+        }
+    }
+
+    private async Task PushWeeklyToObsidian(string markdown)
+    {
+        _statusMessage = null;
+        try
+        {
+            var range = new ReportRange(_from, _to);
+            var (path, overwritten) = await Handler.PushWeeklySummaryAsync(range, markdown, _settings);
+            ShowStatus(overwritten ? $"File overwritten at {path}" : $"Saved to {path}", false);
         }
         catch (Exception ex)
         {

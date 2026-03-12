@@ -130,6 +130,27 @@ public class ReportsHandler(ITimeEntryRepository timeEntryRepo, IJournalEntryRep
         return date.AddDays(-diff);
     }
 
+    public async Task<(string Path, bool Overwritten)> PushWeeklySummaryAsync(
+        ReportRange range,
+        string markdown,
+        UserSettings settings)
+    {
+        if (string.IsNullOrWhiteSpace(settings.VaultRootPath))
+            throw new InvalidOperationException("Vault root path is not configured. Go to Settings.");
+
+        var folder = Path.Combine(settings.VaultRootPath, settings.WeeklyNotesSubfolder);
+        Directory.CreateDirectory(folder);
+
+        var year = range.From.Year;
+        var week = System.Globalization.ISOWeek.GetWeekOfYear(range.From.ToDateTime(TimeOnly.MinValue));
+        var filePath = Path.Combine(folder, $"{year}-W{week:D2}.md");
+
+        bool overwritten = File.Exists(filePath);
+        await File.WriteAllTextAsync(filePath, markdown);
+        return (filePath, overwritten);
+    }
+
+
     public async Task<(string Path, bool Overwritten)> PushAiUsageReportAsync(
         DateOnly from,
         DateOnly to,

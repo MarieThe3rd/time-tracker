@@ -34,7 +34,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .OnDelete(DeleteBehavior.SetNull);
 
         modelBuilder.Entity<UserSettings>().HasData(
-            new UserSettings { Id = 1, DailyNotesSubfolder = @"Journal\Daily" }
+            new UserSettings { Id = 1, DailyNotesSubfolder = @"Journal\Daily", WeeklyNotesSubfolder = @"Journal\Weekly" }
         );
 
         modelBuilder.Entity<WorkCategory>().HasData(

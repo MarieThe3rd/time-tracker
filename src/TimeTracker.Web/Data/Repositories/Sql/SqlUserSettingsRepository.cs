@@ -17,6 +17,7 @@ public class SqlUserSettingsRepository(AppDbContext db) : IUserSettingsRepositor
         {
             existing.VaultRootPath = settings.VaultRootPath;
             existing.DailyNotesSubfolder = settings.DailyNotesSubfolder;
+            existing.WeeklyNotesSubfolder = settings.WeeklyNotesSubfolder;
         }
         await db.SaveChangesAsync();
     }
