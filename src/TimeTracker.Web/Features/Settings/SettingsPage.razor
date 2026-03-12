@@ -1,6 +1,8 @@
 @page "/settings"
 @rendermode InteractiveServer
+@using TimeTracker.Web.Features.Journal.ManageCategories
 @inject SettingsHandler Handler
+@inject ManageJournalCategoriesHandler JournalCategoryHandler
 
 <PageTitle>Settings — Time Tracker</PageTitle>
 
@@ -103,6 +105,68 @@
     </div>
 </div>
 
+<!-- Journal Categories -->
+<div class="row g-4 mt-0">
+    <div class="col-12 col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-header fw-semibold"><i class="bi bi-tags me-2"></i>Journal Categories</div>
+            <div class="card-body p-0">
+                <ul class="list-group list-group-flush">
+                    @foreach (var cat in _journalCategories)
+                    {
+                        <li class="list-group-item d-flex align-items-center gap-2">
+                            <span class="badge" style="background-color:@cat.Color; min-width:24px">
+                                <i class="bi @cat.Icon"></i>
+                            </span>
+                            @if (_editingJournalCatId == cat.Id)
+                            {
+                                <input class="form-control form-control-sm" style="max-width:160px" @bind="cat.Name" />
+                                <input type="color" class="form-control form-control-color form-control-sm" style="width:40px" @bind="cat.Color" />
+                                <button class="btn btn-sm btn-success" @onclick="() => SaveJournalCategory(cat)"><i class="bi bi-check"></i></button>
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="() => _editingJournalCatId = null"><i class="bi bi-x"></i></button>
+                            }
+                            else
+                            {
+                                <span class="flex-grow-1">@cat.Name</span>
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="() => _editingJournalCatId = cat.Id">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                @if (!cat.IsSystem)
+                                {
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteJournalCategory(cat.Id)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">system</span>
+                                }
+                            }
+                        </li>
+                    }
+                </ul>
+
+                <!-- Add new journal category -->
+                <div class="p-3 border-top">
+                    <div class="d-flex gap-2 align-items-center">
+                        <input class="form-control form-control-sm" placeholder="New category name"
+                               @bind="_newJournalCatName" style="flex:1" />
+                        <input type="color" class="form-control form-control-color form-control-sm"
+                               style="width:40px" @bind="_newJournalCatColor" />
+                        <button class="btn btn-sm btn-primary" @onclick="AddJournalCategory">
+                            <i class="bi bi-plus-lg"></i>
+                        </button>
+                    </div>
+                    @if (_journalCatError is not null)
+                    {
+                        <div class="text-danger small mt-1">@_journalCatError</div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 @code {
     private UserSettings _settings = new();
     private List<WorkCategory> _categories = [];
@@ -112,10 +176,17 @@
     private string _newCatColor = "#6c757d";
     private string? _catError;
 
+    private List<TimeTracker.Web.Data.Models.JournalCategory> _journalCategories = [];
+    private int? _editingJournalCatId;
+    private string _newJournalCatName = string.Empty;
+    private string _newJournalCatColor = "#6c757d";
+    private string? _journalCatError;
+
     protected override async Task OnInitializedAsync()
     {
         _settings = await Handler.GetAsync();
         _categories = await Handler.GetCategoriesAsync();
+        _journalCategories = await JournalCategoryHandler.GetAllAsync();
     }
 
     private async Task SaveSettings()
@@ -149,6 +220,33 @@
     {
         await Handler.DeleteCategoryAsync(id);
         _categories = await Handler.GetCategoriesAsync();
+    }
+
+    private async Task AddJournalCategory()
+    {
+        _journalCatError = null;
+        if (string.IsNullOrWhiteSpace(_newJournalCatName))
+        {
+            _journalCatError = "Name is required.";
+            return;
+        }
+        await JournalCategoryHandler.AddAsync(_newJournalCatName, _newJournalCatColor, "bi-tag");
+        _newJournalCatName = string.Empty;
+        _newJournalCatColor = "#6c757d";
+        _journalCategories = await JournalCategoryHandler.GetAllAsync();
+    }
+
+    private async Task SaveJournalCategory(TimeTracker.Web.Data.Models.JournalCategory cat)
+    {
+        await JournalCategoryHandler.UpdateAsync(cat);
+        _editingJournalCatId = null;
+        _journalCategories = await JournalCategoryHandler.GetAllAsync();
+    }
+
+    private async Task DeleteJournalCategory(int id)
+    {
+        await JournalCategoryHandler.DeleteAsync(id);
+        _journalCategories = await JournalCategoryHandler.GetAllAsync();
     }
 }
 

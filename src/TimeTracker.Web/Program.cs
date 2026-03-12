@@ -7,6 +7,7 @@ using TimeTracker.Web.Features.Timer.ManualEntry;
 using TimeTracker.Web.Features.Journal.AddEntry;
 using TimeTracker.Web.Features.Journal.ListEntries;
 using TimeTracker.Web.Features.Journal.UpdateJournalEntry;
+using TimeTracker.Web.Features.Journal.ManageCategories;
 using TimeTracker.Web.Features.Dashboard;
 using TimeTracker.Web.Features.Reports;
 using TimeTracker.Web.Features.Reports.DailyNote;
@@ -38,6 +39,7 @@ builder.Services.AddScoped<AddEntryHandler>();
 builder.Services.AddScoped<ListEntriesHandler>();
 builder.Services.AddScoped<DeleteJournalEntryHandler>();
 builder.Services.AddScoped<UpdateJournalEntryHandler>();
+builder.Services.AddScoped<ManageJournalCategoriesHandler>();
 
 // Timer feature handlers
 builder.Services.AddSingleton<RunningTimerService>();

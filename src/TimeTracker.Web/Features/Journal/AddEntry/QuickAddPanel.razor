@@ -2,6 +2,7 @@
 @inject AddEntryHandler AddHandler
 @inject TimeTracker.Web.Features.Journal.JournalChangeService JournalChangeSvc
 @inject TimeTracker.Web.Data.Repositories.IJournalTypeRepository JournalTypeRepo
+@inject TimeTracker.Web.Data.Repositories.IJournalCategoryRepository JournalCategoryRepo
 
 <!-- FAB trigger button — fixed bottom right -->
 <div style="position:fixed;bottom:1.5rem;right:1.5rem;z-index:1050">
@@ -38,6 +39,18 @@
                     </button>
                 }
             </div>
+        </div>
+
+        <!-- Category selector -->
+        <div class="mb-3">
+            <label class="form-label fw-semibold">Category</label>
+            <select class="form-select" @bind="_categoryIdStr">
+                <option value="">No category</option>
+                @foreach (var cat in _journalCategories)
+                {
+                    <option value="@cat.Id">@cat.Name</option>
+                }
+            </select>
         </div>
 
         <div class="mb-3">
@@ -83,7 +96,10 @@
     private string? _error;
 
     private List<JournalType> _journalTypes = [];
+    private List<TimeTracker.Web.Data.Models.JournalCategory> _journalCategories = [];
     private int _journalTypeId = 3; // default: Success
+    private string _categoryIdStr = string.Empty;
+    private int? CategoryId => int.TryParse(_categoryIdStr, out var id) ? id : null;
     private string _title = string.Empty;
     private string _body = string.Empty;
     private DateOnly _date = DateOnly.FromDateTime(DateTime.Today);
@@ -93,6 +109,7 @@
         _journalTypes = await JournalTypeRepo.GetAllAsync();
         if (_journalTypes.Count > 0)
             _journalTypeId = _journalTypes.First(t => t.Name == "Success")?.Id ?? _journalTypes[0].Id;
+        _journalCategories = await JournalCategoryRepo.GetAllAsync();
     }
 
     public void Open()  { _open = true;  _saved = false; _error = null; }
@@ -109,7 +126,7 @@
         _saving = true;
         try
         {
-            await AddHandler.HandleAsync(new AddJournalEntryInput(_journalTypeId, _title, _body, _date));
+            await AddHandler.HandleAsync(new AddJournalEntryInput(_journalTypeId, _title, _body, _date, JournalCategoryId: CategoryId));
             _saved = true;
             JournalChangeSvc.NotifyEntryAdded();
             _title = string.Empty;
