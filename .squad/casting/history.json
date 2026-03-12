@@ -1,0 +1,23 @@
+{
+  "assignment_cast_snapshots": {
+    "repl-cast-2026-03-12T00:54:10.212Z": {
+      "created_at": "2026-03-12T00:54:10.212Z",
+      "agents": [
+        "deckard",
+        "rachel",
+        "roy",
+        "pris",
+        "sebastian",
+        "scribe",
+        "ralph"
+      ],
+      "universe": "Blade Runner"
+    }
+  },
+  "universe_usage_history": [
+    {
+      "universe": "Blade Runner",
+      "used_at": "2026-03-12T00:54:10.212Z"
+    }
+  ]
+}

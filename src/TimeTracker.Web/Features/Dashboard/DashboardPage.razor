@@ -52,9 +52,9 @@ else
             <div class="card shadow-sm text-center h-100">
                 <div class="card-body">
                     <div class="text-muted small mb-1">AI Time Saved This Week</div>
-                    <div class="fs-3 fw-bold">@FormatMinutes(_data.AiSummary.WeekTimeSavedMinutes)</div>
+                    <div class="fs-3 fw-bold">@TimeFormatHelper.FormatMinutes(_data.AiSummary.WeekTimeSavedMinutes)</div>
                     <div class="small text-muted mt-2">
-                        Today: @FormatMinutes(_data.AiSummary.TodayTimeSavedMinutes)
+                        Today: @TimeFormatHelper.FormatMinutes(_data.AiSummary.TodayTimeSavedMinutes)
                     </div>
                     <div class="small text-muted">
                         Assisted entries: @_data.AiSummary.WeekAssistedEntries this week
@@ -106,7 +106,7 @@ else
                                     <span class="flex-grow-1 small text-truncate">@(e.Description ?? "—")</span>
                                     @if (e.AiUsed)
                                     {
-                                        <span class="badge text-bg-info">AI @FormatMinutes(e.AiTimeSavedMinutes ?? 0)</span>
+                                        <span class="badge text-bg-info">AI @TimeFormatHelper.FormatMinutes(e.AiTimeSavedMinutes)</span>
                                     }
                                     <span class="text-muted small text-nowrap">@FormatSpan(e.Duration)</span>
                                     @if (e.ProductivityRating.HasValue)
@@ -180,12 +180,6 @@ else
     {
         if (ts is null) return "—";
         return $"{(int)ts.Value.TotalHours}h {ts.Value.Minutes}m";
-    }
-
-    private static string FormatMinutes(int minutes)
-    {
-        var span = TimeSpan.FromMinutes(minutes);
-        return $"{(int)span.TotalHours}h {span.Minutes}m";
     }
 }
 

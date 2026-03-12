@@ -37,7 +37,7 @@
                     <input class="form-control" placeholder="What are you working on?" @bind="_description" />
                 </div>
                 <div class="d-flex align-items-center gap-3">
-                    <span class="display-6 fw-bold font-monospace">@_elapsed</span>
+                    <span class="fs-4 fw-bold font-monospace">@_elapsed</span>
                     @if (!TimerService.IsRunning)
                     {
                         <button class="btn btn-success btn-lg" @onclick="StartTimer">
@@ -70,11 +70,15 @@
                     <div class="row g-2 mb-2">
                         <div class="col-6">
                             <label class="form-label">Start</label>
-                            <input type="datetime-local" class="form-control" @bind="_manualStart" />
+                            <input type="datetime-local" class="form-control"
+                                   value="@_manualStart.ToString("yyyy-MM-ddTHH:mm")"
+                                   @onchange="OnManualStartChanged" />
                         </div>
                         <div class="col-6">
                             <label class="form-label">End</label>
-                            <input type="datetime-local" class="form-control" @bind="_manualEnd" />
+                            <input type="datetime-local" class="form-control"
+                                   value="@_manualEnd.ToString("yyyy-MM-ddTHH:mm")"
+                                   @onchange="OnManualEndChanged" />
                         </div>
                     </div>
                     <div class="mb-2">
@@ -187,7 +191,7 @@
                                     }
                                 </td>
                                 <td class="small">
-                                    @(entry.AiUsed ? $"Yes ({entry.AiTimeSavedMinutes ?? 0}m)" : "No")
+                                    @(entry.AiUsed ? $"Yes ({TimeFormatHelper.FormatMinutes(entry.AiTimeSavedMinutes)})" : "No")
                                 </td>
                                 <td>
                                     <button class="btn btn-sm btn-outline-secondary me-1" @onclick="() => BeginEdit(entry)">
@@ -287,8 +291,9 @@
     private DotNetObjectReference<TimerPage>? _dotNetRef;
 
     private bool _showManual = false;
-    private DateTime _manualStart = DateTime.Today.AddHours(8);
-    private DateTime _manualEnd = DateTime.Today.AddHours(9);
+    private DateTime _manualStart = DateTime.Now;
+    private DateTime _manualEnd = DateTime.Now.AddMinutes(30);
+    private bool _manualEndAutoSet = true;
     private int? _manualCategoryId;
     private string? _manualDescription;
     private int _manualRating = 0;
@@ -493,19 +498,40 @@
 
         if (latestEndUtc.HasValue)
         {
-            _manualStart = RoundUpToNextHalfHour(latestEndUtc.Value.ToLocalTime());
-            _manualEnd = _manualStart.AddHours(1);
-            return;
+            _manualStart = RoundToNearest15Min(latestEndUtc.Value.ToLocalTime());
+        }
+        else
+        {
+            _manualStart = RoundToNearest15Min(DateTime.Now);
         }
 
-        _manualStart = todayLocalStart.AddHours(8);
-        _manualEnd = _manualStart.AddHours(1);
+        _manualEnd = _manualStart.AddMinutes(30);
+        _manualEndAutoSet = true;
     }
 
-    private static DateTime RoundUpToNextHalfHour(DateTime value)
+    private void OnManualStartChanged(ChangeEventArgs e)
     {
-        var halfHourTicks = TimeSpan.FromMinutes(30).Ticks;
-        var roundedTicks = ((value.Ticks + halfHourTicks - 1) / halfHourTicks) * halfHourTicks;
+        if (DateTime.TryParse(e.Value?.ToString(), out var newStart))
+        {
+            _manualStart = newStart;
+            if (_manualEndAutoSet)
+                _manualEnd = _manualStart.AddMinutes(30);
+        }
+    }
+
+    private void OnManualEndChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var newEnd))
+        {
+            _manualEnd = newEnd;
+            _manualEndAutoSet = false;
+        }
+    }
+
+    private static DateTime RoundToNearest15Min(DateTime value)
+    {
+        var quarterHourTicks = TimeSpan.FromMinutes(15).Ticks;
+        var roundedTicks = (value.Ticks + quarterHourTicks / 2) / quarterHourTicks * quarterHourTicks;
         return new DateTime(roundedTicks, value.Kind);
     }
 
